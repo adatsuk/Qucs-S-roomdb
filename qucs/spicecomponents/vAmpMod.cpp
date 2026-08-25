@@ -94,7 +94,7 @@ QString vAmpMod::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
     Q_UNUSED(dialect);
 
     QString s = spicecompat::check_refdes(Name,SpiceModel);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -107,6 +107,6 @@ QString vAmpMod::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
    QString Td = spicecompat::normalize_value(Props.at(4)->Value);
 
 
-    s += QStringLiteral(" AM(0 %2 %1 %3 %4 %5)\n").arg(Va).arg(Vo).arg(Mf).arg(Fc).arg(Td);
+    s += QStringLiteral(" AM(0 %2 %1 %3 %4 %5)\n").arg(Va, Vo, Mf, Fc, Td);
     return s;
 }

@@ -17,13 +17,10 @@
 
 
 #include "ngspice.h"
-#include "components/iprobe.h"
-#include "components/vprobe.h"
 #include "components/equation.h"
 #include "components/param_sweep.h"
 #include "components/subcircuit.h"
 #include "spicecomponents/sp_spiceinit.h"
-#include "spicecomponents/xsp_cmlib.h"
 #include "main.h"
 #include "misc.h"
 #include "qucs.h"
@@ -121,7 +118,7 @@ void Ngspice::createNetlist(
             QStringList osdi_ext;
             osdi_ext<<"*.osdi";
             QStringList osdi_files = QucsSettings.QucsWorkDir.entryList(osdi_ext,QDir::Files);
-            for(const auto &file : osdi_files) {
+            for(const auto &file : std::as_const(osdi_files)) {
                 QString abs_file = QucsSettings.QucsWorkDir.absolutePath() +
                         QDir::separator() + file;
                 stream<<QStringLiteral("pre_osdi '%1'\n").arg(abs_file);
@@ -164,7 +161,7 @@ void Ngspice::createNetlist(
         }
 
         QString nods;
-        for (const QString& nod : vars) {
+        for (const QString& nod : std::as_const(vars)) {
             if ( nod.endsWith("#branch") )
                 nods.append(QStringLiteral("i(%1) ").arg(nod.section('#', 0, 0)));
             else
@@ -227,7 +224,7 @@ void Ngspice::createNetlist(
             QRegularExpression pz_rx("^\\s*pz\\s.*", QRegularExpression::CaseInsensitiveOption);
 
             QStringList lines = pc->getSpiceNetlist().split('\n');
-            for ( const QString& line : lines ) {
+            for ( const QString& line : std::as_const(lines) ) {
                 if      ( ac_rx.match(line).hasMatch() )      freqSims++ ;
                 else if ( sp_rx.match(line).hasMatch() )      freqSims++ ;
                 else if ( noise_rx.match(line).hasMatch() )   freqSims++ ;
@@ -316,7 +313,7 @@ void Ngspice::createNetlist(
 
         if ( sim_typ == ".DC" ) {
             QString out = "spice4qucs." + sim_name + ".ngspice.dc.print";
-            spiceNetlist.append(QStringLiteral("print %1 > %2\n").arg(nods).arg(out));
+            spiceNetlist.append(QStringLiteral("print %1 > %2\n").arg(nods, out));
             outputs.append(out);
         } 
         else if (sim_typ == ".NOISE") {
@@ -325,13 +322,13 @@ void Ngspice::createNetlist(
                 QString basenam = "spice4qucs";
                 QString filename;
                 if ( hasParSWP && hasDblSWP )
-                    filename = QStringLiteral("%1.%2._swp_swp.raw").arg(basenam).arg(sim_name);
+                    filename = QStringLiteral("%1.%2._swp_swp.raw").arg(basenam, sim_name);
                 else if ( hasParSWP )
-                    filename = QStringLiteral("%1.%2._swp.raw").arg(basenam).arg(sim_name);
+                    filename = QStringLiteral("%1.%2._swp.raw").arg(basenam, sim_name);
                 else
-                    filename = QStringLiteral("%1.%2.raw").arg(basenam).arg(sim_name);
+                    filename = QStringLiteral("%1.%2.raw").arg(basenam, sim_name);
                 filename.replace(' ', '_'); // Ngspice cannot understand spaces in filename
-                spiceNetlist.append(QStringLiteral("write %1 %2\n").arg(filename).arg(nods));
+                spiceNetlist.append(QStringLiteral("write %1 %2\n").arg(filename, nods));
                 outputs.append(filename);
             }
         }
@@ -341,13 +338,13 @@ void Ngspice::createNetlist(
                 QString basenam = "spice4qucs";
                 QString filename;
                 if ( hasParSWP && hasDblSWP )
-                    filename = QStringLiteral("%1.%2._swp_swp.plot").arg(basenam).arg(sim_name);
+                    filename = QStringLiteral("%1.%2._swp_swp.plot").arg(basenam, sim_name);
                 else if ( hasParSWP )
-                    filename = QStringLiteral("%1.%2._swp.plot").arg(basenam).arg(sim_name);
+                    filename = QStringLiteral("%1.%2._swp.plot").arg(basenam, sim_name);
                 else
-                    filename = QStringLiteral("%1.%2.plot").arg(basenam).arg(sim_name);
+                    filename = QStringLiteral("%1.%2.plot").arg(basenam, sim_name);
                 filename.replace(' ', '_'); // Ngspice cannot understand spaces in filename
-                spiceNetlist.append(QStringLiteral("write %1 %2\n").arg(filename).arg(nods));
+                spiceNetlist.append(QStringLiteral("write %1 %2\n").arg(filename, nods));
                 outputs.append(filename);
             }
         }
@@ -581,7 +578,7 @@ void Ngspice::slotProcessOutput()
     QString s = a_simProcess->readAllStandardOutput();
     QRegularExpression percentage_pattern("^%\\d\\d*\\.\\d\\d.*$");
     if (percentage_pattern.match(s).hasMatch()) {
-        int percent = round(s.mid(1,5).toFloat());
+        int percent = round(QStringView(s).mid(1,5).toFloat());
         emit progress(percent);
     }
     a_output += s;

@@ -33,7 +33,7 @@
 class Schematic;
 class QString;
 class QPen;
-
+class ComponentDialog;
 
 class Component : public Element {
 public:
@@ -73,6 +73,11 @@ public:
   QString save();
   bool    load(const QString&);
 
+  /// @brief Creates the properties dialog
+  /// @details This allows components to create custom property dialogs. It was introduced
+  /// with the S-parameter de-embedding components to fill the port number automatically for the S-parameter file
+  virtual ComponentDialog* createDialog(Schematic* s);
+
   // helper function that sets the node of the port to the same center as the port
   bool setNodePortCenter(Port* p);
 
@@ -93,6 +98,7 @@ public:
   QList<struct qucs::Arc *>      Arcs;
   QList<qucs::Rect *>     Rects;
   QList<qucs::Ellips *>     Ellipses;
+  QList<qucs::Image *>     Images;
   QList<Port *>     Ports;
   QList<Text *>     Texts;
   QList<Property*> Props;

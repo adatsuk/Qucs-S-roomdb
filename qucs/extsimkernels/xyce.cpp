@@ -138,7 +138,7 @@ QSet<QString> Xyce::getActiveLabelledNets(spicecompat::SpiceDialect dialect/*=sp
         }
 
         // add every node name
-        for (Port *pp : pc->Ports) {
+        for (Port *pp : std::as_const(pc->Ports)) {
             Node *pn = pp->Connection;
             if (!pn || pn->Name == "gnd") continue;
             activeNets.insert(pn->Name);
@@ -283,13 +283,13 @@ void Xyce::createNetlist(
     }
 
     QString filename;
-    if (hasParSweep) filename = QStringLiteral("%1.%2._swp.plot").arg(basenam).arg(sim);
-    else filename = QStringLiteral("%1.%2.plot").arg(basenam).arg(sim);
+    if (hasParSweep) filename = QStringLiteral("%1.%2._swp.plot").arg(basenam, sim);
+    else filename = QStringLiteral("%1.%2.plot").arg(basenam, sim);
     filename.remove(QRegularExpression("\\s")); // XYCE don't support spaces and quotes
     QString write_str;
     if (sim=="hb") {
         // write_str = QStringLiteral(".PRINT  %1 file=%2 %3\n").arg(sim).arg(filename).arg(nods);
-        write_str = QStringLiteral(".PRINT  %1 %2\n").arg(sim).arg(nods);
+        write_str = QStringLiteral(".PRINT  %1 %2\n").arg(sim, nods);
         outputs.append("spice4qucs.hb.cir.HB.FD.prn");
     } else if (sim=="noise") {
         filename += "_std";
@@ -305,7 +305,7 @@ void Xyce::createNetlist(
     } else if (sim=="sp") {
         write_str = ".PRINT ac format=std file=spice4qucs_sparam.prn ";
         if (hasParSweep) {
-            for (const auto &v: spar_vars) { // Bug in Xyce; cannot print Z-par if
+            for (const auto &v: std::as_const(spar_vars)) { // Bug in Xyce; cannot print Z-par if
                  // .STEP is activated; otherwise simulation error
                 if ( !v.startsWith("z(")) write_str += QStringLiteral("%1 ").arg(v);
             }
@@ -315,7 +315,7 @@ void Xyce::createNetlist(
         write_str += "\n";
         outputs.append("spice4qucs_sparam.prn");
     } else {
-        write_str = QStringLiteral(".PRINT  %1 format=raw file=%2 %3\n").arg(sim).arg(filename).arg(nods);
+        write_str = QStringLiteral(".PRINT  %1 format=raw file=%2 %3\n").arg(sim, filename, nods);
         outputs.append(filename);
     }
     stream<<write_str;
@@ -368,7 +368,7 @@ void Xyce::slotSimulate()
     QFile::remove(a_workdir+"spice4qucs.sens_tr.cir.SENS.prn");
     QFile::remove(a_workdir+"spice4qucs.sens_tr.cir.TRADJ.prn");
 
-    for (const QString& sim : a_simulationsQueue) {
+    for (const QString& sim : std::as_const(a_simulationsQueue)) {
         QStringList sim_lst;
         sim_lst.clear();
         sim_lst.append(sim);

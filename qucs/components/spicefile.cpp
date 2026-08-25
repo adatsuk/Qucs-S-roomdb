@@ -158,7 +158,7 @@ QString SpiceFile::netlist()
     return QString();  // no ports, no subcircuit instance
 
   QString s = "Sub:"+Name;   // SPICE netlist is subcircuit
-  for (Port *pp : Ports)
+  for (Port *pp : std::as_const(Ports))
     s += " "+pp->Connection->Name;   // output all node names
 
   QString f = misc::properFileName(Props.first()->Value);

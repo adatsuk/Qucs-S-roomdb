@@ -106,11 +106,11 @@ QString VCVS::va_code()
 
     QString Vpm = vacompat::normalize_voltage(P1,P2);
     QString Ipm = vacompat::normalize_current(P1,P2,true);
-    s += QStringLiteral(" %1  <+  %2 * 1e-9;\n").arg(Ipm).arg(Vpm);
+    s += QStringLiteral(" %1  <+  %2 * 1e-9;\n").arg(Ipm, Vpm);
     QString Vpm2 = vacompat::normalize_voltage(P3,P4);
     QString Ipm2 = vacompat::normalize_current(P3,P4,true);
-    s += QStringLiteral("%1  <+  -(%2 * 1e3);\n").arg(Ipm2).arg(Vpm2);
-    s += QStringLiteral("%1  <+  -(%2 * 1e3*  %3) ;\n").arg(Ipm2).arg(Vpm).arg(Gain);
+    s += QStringLiteral("%1  <+  -(%2 * 1e3);\n").arg(Ipm2, Vpm2);
+    s += QStringLiteral("%1  <+  -(%2 * 1e3*  %3) ;\n").arg(Ipm2, Vpm, Gain);
 
     return s;
 }
@@ -123,7 +123,7 @@ QString VCVS::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::
     QList<int> seq; // nodes sequence
     seq<<1<<2<<0<<3;
     // output all node names
-    for (int i : seq) {
+    for (int i : std::as_const(seq)) {
         QString nam = Ports.at(i)->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names

@@ -138,8 +138,8 @@ QString GraphicText::saveCpp()
     QString s = QStringLiteral("new Text (%1, %2, \"%3\", QColor (\"%4\"), %5, %6, %7)")
                     .arg(x1)
                     .arg(y1)
-                    .arg(t)
-                    .arg(color.name())
+                    .arg(t,
+                    color.name())
                     .arg(font.pointSize())
                     .arg(cos(pi * angle / 180.0))
                     .arg(sin(pi * angle / 180.0));
@@ -157,8 +157,8 @@ QString GraphicText::saveJSON()
                         "\"color\" : \"%4\", \"size\" : %5, \"cos\" : %6, \"sin\" : %7},")
                     .arg(x1)
                     .arg(y1)
-                    .arg(t)
-                    .arg(color.name())
+                    .arg(t,
+                    color.name())
                     .arg(font.pointSize())
                     .arg(cos(pi * angle / 180.0))
                     .arg(sin(pi * angle / 180.0));

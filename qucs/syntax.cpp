@@ -207,37 +207,37 @@ void SyntaxHighlighter::setLanguage(int lang)
     break;
     }
 
-  for (const QString &pattern : reservedWordPattern) {
+  for (const QString &pattern : std::as_const(reservedWordPattern)) {
     rule.pattern = QRegularExpression(pattern);
     rule.format = reservedWordFormat;
     highlightingRules.append(rule);
   }
 
-  for (const QString &pattern : unitPattern) {
+  for (const QString &pattern : std::as_const(unitPattern)) {
     rule.pattern = QRegularExpression(pattern);
     rule.format = unitFormat;
     highlightingRules.append(rule);
   }
 
-  for (const QString &pattern : datatypePattern) {
+  for (const QString &pattern : std::as_const(datatypePattern)) {
     rule.pattern = QRegularExpression(pattern);
     rule.format = datatypeFormat;
     highlightingRules.append(rule);
   }
 
-  for (const QString &pattern : directivePattern) {
+  for (const QString &pattern : std::as_const(directivePattern)) {
     rule.pattern = QRegularExpression(pattern);
     rule.format = directiveFormat;
     highlightingRules.append(rule);
   }
 
-  for (const QString &pattern : functionPattern) {
+  for (const QString &pattern : std::as_const(functionPattern)) {
     rule.pattern = QRegularExpression(pattern);
     rule.format = functionFormat;
     highlightingRules.append(rule);
   }
 
-  for (const QString &pattern : commentPattern) {
+  for (const QString &pattern : std::as_const(commentPattern)) {
     rule.pattern = QRegularExpression(pattern);
     rule.format = commentFormat;
     highlightingRules.append(rule);
@@ -246,7 +246,7 @@ void SyntaxHighlighter::setLanguage(int lang)
 
 // ---------------------------------------------------
 void SyntaxHighlighter::highlightBlock(const QString &text) {
-    for (const HighlightingRule &rule : highlightingRules) {
+    for (const HighlightingRule &rule : std::as_const(highlightingRules)) {
         QRegularExpression expression(rule.pattern);
         QRegularExpressionMatchIterator iter = expression.globalMatch(text);
         while (iter.hasNext()) {

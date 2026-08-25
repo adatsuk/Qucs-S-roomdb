@@ -40,7 +40,7 @@ DIODE_SPICE::DIODE_SPICE()
     Props.append(new Property("Pins", "2", true,"[2,3] Pins count"));
     Props.append(new Property("Letter", "D", true,"[D,X,N] SPICE letter"));
 
-    createSymbol();
+    DIODE_SPICE::createSymbol();
     tx = x1+4;
     ty = y2+4;
 }
@@ -120,7 +120,7 @@ QString DIODE_SPICE::spice_netlist(spicecompat::SpiceDialect dialect /* = spicec
 
     QString ltr = getProperty("Letter")->Value;
     QString s = spicecompat::check_refdes(Name,ltr);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam+" ";   // node names

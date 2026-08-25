@@ -19,6 +19,7 @@
 #define WIRE_H
 
 #include "conductor.h"
+#include <list> // Style settings propagation through the schematic
 
 class Schematic;
 class QPainter;
@@ -60,11 +61,35 @@ public:
   void connectPort1(Node* n);
   void connectPort2(Node* n);
 
+  /// Functions for handling the color of the wire
+  /// @{
+  QColor color() const { return m_color; }
+  void setColor(const QColor& c) { m_color = c; }
+  void clearColor() { m_color = Qt::darkBlue; }
+
+  int lineWidth() const { return m_lineWidth; }
+  void setLineWidth(int w) { m_lineWidth = w; }
+  void clearLineWidth() { m_lineWidth = 2; }
+  /// @}
+
+  /// @brief Propagate the style settings through the nodes and wires across the schematic
+  /// @param c Color to propagate
+  /// @param linewidth Line width to propagate
+  /// @param allNodes List of all the nodes in the schematic
+  /// @param allWires List of all the wires in the schematic
+  void propagateStyle(const QColor& c, int lineWidth,
+                      const std::list<Node*>& allNodes,
+                      const std::list<Wire*>& allWires);
+
 private:
   void updateCenter() noexcept;
   void updateP1() noexcept;
   void updateP2() noexcept;
   void updatePorts() noexcept;
+
+  /// Style
+  QColor m_color;  // Color
+  int m_lineWidth; // Line width
 };
 
 #endif

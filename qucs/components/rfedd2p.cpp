@@ -48,7 +48,7 @@ RFedd2P::RFedd2P()
   Props.append(new Property("P22", "0", false,
 		QObject::tr("parameter equation") + " 22"));
 
-  createSymbol();
+  RFedd2P::createSymbol();
 }
 
 // -------------------------------------------------------
@@ -83,7 +83,7 @@ QString RFedd2P::netlist()
   QString n, p;
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " "+p1->Connection->Name;   // node names
 
   // output all properties
@@ -140,7 +140,7 @@ void RFedd2P::createSymbol()
   Ports.append(new Port( 30,  y));
   tmp = QString::number(i+1);
   Texts.append(new Text(25, y-fHeight-2, tmp)); // text left-aligned
-  y += 60;
+
   i++;
 
   x1 = -30; y1 = -h-2;

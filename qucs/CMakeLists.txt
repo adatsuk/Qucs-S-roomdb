@@ -149,6 +149,7 @@ SET(QUCS_SRCS
   imagewriter.cpp printerwriter.cpp projectView.cpp
   symbolwidget.cpp wire_planner.cpp
   qucsshortcutmanager.cpp
+  schematicvalidator.cpp
 )
 
 SET(QUCS_HDRS
@@ -166,6 +167,7 @@ octave_window.h
 qucs.h
 qucsdoc.h
 qucsshortcutmanager.h
+schematicvalidator.h
 schematic.h
 settings.h
 syntax.h
@@ -177,8 +179,8 @@ wire_planner.h
 )
 
 if(QUCS_ENABLE_CORE)
-  list(APPEND QUCS_SRCS core_schematic_io.cpp)
-  list(APPEND QUCS_HDRS core_schematic_io.h)
+  list(APPEND QUCS_SRCS core_schematic_io.cpp core_primitive_symbol.cpp)
+  list(APPEND QUCS_HDRS core_schematic_io.h core_primitive_symbol.h)
 endif()
 
 #

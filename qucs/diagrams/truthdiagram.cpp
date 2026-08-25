@@ -37,7 +37,7 @@ TruthDiagram::TruthDiagram(int _cx, int _cy) : TabDiagram(_cx, _cy)
   Name = "Truth";
   xAxis.limit_min = 0.0;  // scroll bar position (needs to be saved in file)
 
-  calcDiagram();
+  TruthDiagram::calcDiagram();
 }
 
 TruthDiagram::~TruthDiagram()
@@ -154,7 +154,7 @@ int TruthDiagram::calcDiagram()
   firstGraph = g;
   // ................................................
   // all dependent variables
-  for (Graph *g : Graphs) {
+  for (Graph *g : std::as_const(Graphs)) {
     y = y2-tHeight-5;
 
     Str = g->Var;

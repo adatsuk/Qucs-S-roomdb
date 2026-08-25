@@ -138,7 +138,7 @@ void SelFromLibDialog::fillLibComboBox()
 {
   checkAndParseLibrary(QucsSettings.LibDir,true);
 
-  for(const auto &lib: parsedLibs) {
+  for(const auto &lib: std::as_const(parsedLibs)) {
     cbxLib->addItem(lib->name);
   }
 }
@@ -146,10 +146,10 @@ void SelFromLibDialog::fillLibComboBox()
 void SelFromLibDialog::slotShowComponents()
 {
   QString libname = cbxLib->currentText();
-  for(const auto &lib: parsedLibs) {
+  for(const auto &lib: std::as_const(parsedLibs)) {
     if (lib->name == libname) {
       lstComps->clear();
-      for (const auto &c: lib->components) {
+      for (const auto &c: std::as_const(lib->components)) {
         QString m = c.modelString;
         m.remove(0,1);
         m.chop(1);
@@ -170,9 +170,9 @@ void SelFromLibDialog::slotShowDescription()
   if (itm == nullptr) return;
   edtDescr->clear();
   QString compname = itm->text();
-  for(const auto &lib: parsedLibs) {
+  for(const auto &lib: std::as_const(parsedLibs)) {
     if (lib->name == libname) {
-      for (const auto &c: lib->components) {
+      for (const auto &c: std::as_const(lib->components)) {
         if (compname == c.name) {
           QString desc;
           QString def = c.definition;
@@ -208,7 +208,7 @@ void SelFromLibDialog::checkAndParseLibrary(const QString &libdir, bool relpath)
     if (result != QUCS_COMP_LIB_OK) return;
 
     bool found = false;
-    for(const auto &c: parsedlibrary->components) {
+    for(const auto &c: std::as_const(parsedlibrary->components)) {
       QString m = c.modelString;
       m.remove(0,1);
       m.chop(1);

@@ -38,7 +38,7 @@ TimingDiagram::TimingDiagram(int _cx, int _cy) : TabDiagram(_cx, _cy)
   Name = "Time";
   xAxis.limit_min = 0.0;  // scroll bar position (needs to be saved in file)
 
-  calcDiagram();
+  TimingDiagram::calcDiagram();
 }
 
 TimingDiagram::~TimingDiagram()
@@ -54,14 +54,14 @@ void TimingDiagram::paintDiagram(QPainter *painter) {
 
   painter->translate(cx, cy);
 
-  for (qucs::Line* line : Lines) {
+  for (qucs::Line* line : std::as_const(Lines)) {
     painter->setPen(line->style);
     painter->drawLine(line->x1, -line->y1, line->x2, -line->y2);
   }
 
   painter->setPen(Qt::black);
 
-  for (Text *pt : Texts) {
+  for (Text *pt : std::as_const(Texts)) {
     painter->drawText(pt->x, -pt->y, 1, 1, Qt::TextDontClip, pt->s);
   }
 
@@ -189,7 +189,7 @@ int TimingDiagram::calcDiagram()
 
   // First check the maximum bit number of all vectors.
   colWidth = 0;
-  for (Graph *g : Graphs)
+  for (Graph *g : std::as_const(Graphs))
     if(g->cPointsY) {
       if(g->Var.right(2) == ".X") {
         z = strlen((char*)g->cPointsY);
@@ -230,7 +230,7 @@ if(!firstGraph->isEmpty()) {
 
   y -= 5;
   // write all dependent variable names to get width of first column
-  for (Graph *g : Graphs) {
+  for (Graph *g : std::as_const(Graphs)) {
     if(y < tHeight)  break;
     Str = g->Var;
     colWidth = checkColumnWidth(Str, metrics, colWidth, x, y);
@@ -278,7 +278,7 @@ if(!firstGraph->isEmpty()) {
   QPen Pen;
   int  yLast, yNow;
   y = y2-tHeight-9;
-  for (Graph *g : Graphs) {
+  for (Graph *g : std::as_const(Graphs)) {
     if(y < tHeight) {
       // mark lack of space with a small arrow
       Lines.append(new qucs::Line(4, 6, 4, -7, QPen(Qt::red,2)));

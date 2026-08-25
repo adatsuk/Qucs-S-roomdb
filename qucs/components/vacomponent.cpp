@@ -301,20 +301,17 @@ QString vacomponent::spice_netlist(spicecompat::SpiceDialect dialect /* = spicec
     if (dialect == spicecompat::SPICEXyce) return QString();
 
     QString s = SpiceModel + Name + " ";
-    for(const auto pp: Ports) {
+    for(const auto pp: std::as_const(Ports)) {
         s += pp->Connection->Name + " ";
     }
-    QString tmp_model = QStringLiteral("mod_%1_%2").arg(Model).arg(Name);
+    QString tmp_model = QStringLiteral("mod_%1_%2").arg(Model, Name);
     s += tmp_model + "\n";
     QString par_str;
     for(int i = 0; i < Props.count(); i++) {
         par_str += QStringLiteral("%1=%2 ")
-                .arg(Props.at(i)->Name)
-                .arg(Props.at(i)->Value);
+                .arg(Props.at(i)->Name, Props.at(i)->Value);
     }
-    s += QStringLiteral(".MODEL %1 %2 %3\n").arg(tmp_model)
-                                      .arg(Model)
-                                      .arg(par_str);
+    s += QStringLiteral(".MODEL %1 %2 %3\n").arg(tmp_model, Model, par_str);
     return s;
 }
 

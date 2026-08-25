@@ -30,9 +30,9 @@ Capacitor::Capacitor()
   Props.append(new Property("V", "", false,
     QObject::tr("initial voltage for transient simulation")));
   Props.append(new Property("Symbol", "neutral", false,
-  QObject::tr("schematic symbol")+" [neutral, polar]"));
+  QObject::tr("schematic symbol")+" [neutral, polar, eu_polar]"));
 
-  createSymbol();
+  Capacitor::createSymbol();
   tx = x1+4;
   ty = y2+4;
   Model = "C";
@@ -58,8 +58,7 @@ QString Capacitor::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecom
 {
     QString s = spicecompat::check_refdes(Name,SpiceModel);
 
-    s += QStringLiteral(" %1 %2 ").arg(Ports.at(0)->Connection->Name)
-            .arg(Ports.at(1)->Connection->Name); // output  nodes
+    s += QStringLiteral(" %1 %2 ").arg(Ports.at(0)->Connection->Name, Ports.at(1)->Connection->Name); // output  nodes
     s.replace(" gnd ", " 0 ");
 
     s += " "+spicecompat::normalize_value(Props.at(0)->Value) + " ";
@@ -86,26 +85,35 @@ QString Capacitor::va_code()
     QString Vpm = vacompat::normalize_voltage(plus,minus);
     if (Vpm.startsWith("(-")) Vpm.remove(1,1); // Make capacitor unipolar, remove starting minus
     QString Ipm = vacompat::normalize_current(plus,minus,true);
-    s  += QStringLiteral("%1  <+ ddt( %2 *  %3  );\n").arg(Ipm).arg(Vpm).arg(val);
+    s  += QStringLiteral("%1  <+ ddt( %2 *  %3  );\n").arg(Ipm, Vpm, val);
 
     return s;
 }
 
 void Capacitor::createSymbol()
 {
-  if(Props.back()->Value.at(0) == 'n') {
+  if(Props.back()->Value ==  "neutral") {
     Lines.append(new qucs::Line( -4,-11, -4, 11,QPen(Qt::darkBlue,4)));
     Lines.append(new qucs::Line(  4,-11,  4, 11,QPen(Qt::darkBlue,4)));
-  }
-  else {
+  } else if(Props.back()->Value == "polar") {
     Lines.append(new qucs::Line(-11, -5,-11,-11,QPen(Qt::red,1)));
     Lines.append(new qucs::Line(-14, -8, -8, -8,QPen(Qt::red,1)));
     Lines.append(new qucs::Line( -4,-11, -4, 11,QPen(Qt::darkBlue,3)));
     Arcs.append(new qucs::Arc(4,-12, 20, 24, 16*122, 16*116,QPen(Qt::darkBlue,3)));
+  } else if(Props.back()->Value == "eu_polar") {
+    Lines.append(new qucs::Line( -2,-11, -2, 11,QPen(Qt::darkBlue,1)));
+    Lines.append(new qucs::Line( -5,-11, -5, 11,QPen(Qt::darkBlue,1)));
+    Lines.append(new qucs::Line( -5,-11, -2, -11,QPen(Qt::darkBlue,1)));
+    Lines.append(new qucs::Line( -5,11, -2, 11,QPen(Qt::darkBlue,1)));
+    Lines.append(new qucs::Line(-11, -5,-11,-11,QPen(Qt::black,1)));
+    Lines.append(new qucs::Line(-14, -8, -8, -8,QPen(Qt::black,1)));
+    for(int i=0; i<4; i++) {
+      Lines.append(new qucs::Line(  2+i,-11,  2+i, 11,QPen(Qt::darkBlue,1)));
+    }
   }
 
-  Lines.append(new qucs::Line(-30,  0, -4,  0,QPen(Qt::darkBlue,2)));
-  Lines.append(new qucs::Line(  4,  0, 30,  0,QPen(Qt::darkBlue,2)));
+  Lines.append(new qucs::Line(-30,  0, -6,  0,QPen(Qt::darkBlue,2)));
+  Lines.append(new qucs::Line(  6,  0, 30,  0,QPen(Qt::darkBlue,2)));
 
   Ports.append(new Port(-30,  0));
   Ports.append(new Port( 30,  0));

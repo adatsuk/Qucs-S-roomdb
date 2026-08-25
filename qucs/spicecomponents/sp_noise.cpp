@@ -91,8 +91,8 @@ QString SpiceNoise::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
     }
 
     QString pts_per_sum = getProperty("PtsPerSummary")->Value;
-    s = QStringLiteral("noise %1 %2 %3 %4 %5 %6 %7\n").arg(Props.at(4)->Value).arg(Props.at(5)->Value)
-            .arg(swp).arg(points).arg(fstart).arg(fstop).arg(pts_per_sum);
+    s = QStringLiteral("noise %1 %2 %3 %4 %5 %6 %7\n").arg(Props.at(4)->Value, Props.at(5)->Value,
+            swp, points, fstart, fstop, pts_per_sum);
     QString out = "spice4qucs." + Name.toLower() + ".cir.noise";
     if (dialect != spicecompat::SPICEXyce) {
         s += QStringLiteral("print inoise_total onoise_total >> %1\n").arg(out);

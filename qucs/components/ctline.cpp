@@ -109,9 +109,9 @@ QString CoupledTLine::spice_netlist(spicecompat::SpiceDialect dialect)
 
   s = QString("A_%1 %hd(%2 0) %hd(%3 0) %hd(%4 0) %hd(%5 0)"
               " %vd(%2 0) %vd(%3 0) %vd(%4 0) %vd(%5 0) MODEL_%1\n")
-              .arg(Name).arg(p1).arg(p2).arg(p3).arg(p4);
+              .arg(Name, p1, p2, p3, p4);
   s += QString(".MODEL MODEL_%1 CPLINE(L=%2 ze=%3 zo=%4 ere=%5 ero=%6 ae=%7 ao=%8)\n")
-           .arg(Name).arg(L).arg(Ze).arg(Zo).arg(Ere).arg(Ero).arg(Ae).arg(Ao);
+           .arg(Name, L, Ze, Zo, Ere, Ero, Ae, Ao);
 
   return s;
 }

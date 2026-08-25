@@ -219,7 +219,6 @@ void Marker::createText()
   // independent variables
   Text = "";
   double *pp;
-  nVarPos = pGraph->numAxes();
   DataX const *pD;
 
   auto p = pGraph->findSample(VarPos);
@@ -228,7 +227,6 @@ void Marker::createText()
 
   double v=0.;   // needed for 2D graph in 3D diagram
   double *py=&v;
-  pD = pGraph->axis(0);
   if(pGraph->axis(1)) {
     *py = VarPos[1];
   }
@@ -542,7 +540,7 @@ bool Marker::load(const QString& Line)
 
   do {
     j = n.indexOf('/', i);
-    VarPos[nVarPos++] = n.mid(i,j-i).toDouble(&ok);
+    VarPos[nVarPos++] = QStringView(n).mid(i,j-i).toDouble(&ok);
     if(!ok) return false;
     i = j+1;
   } while(j >= 0);

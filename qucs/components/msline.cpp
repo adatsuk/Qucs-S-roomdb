@@ -98,9 +98,9 @@ QString MSline::spice_netlist(spicecompat::SpiceDialect dialect)
   int Tran = spicecompat::strToTranModel(getProperty("TranModel")->Value);
 
   s = QString("A_%1 %hd(%2 0) %hd(%3 0) %vd(%2 0) %vd(%3 0) MODEL_%1\n")
-          .arg(Name).arg(p1).arg(p2);
+          .arg(Name, p1, p2);
   s += QString(".MODEL MODEL_%1 MLIN(l=%2 w=%3 model=%4 disp=%5 tranmodel=%6 %7)\n")
-          .arg(Name).arg(L).arg(W).arg(Mod).arg(Disp).arg(Tran).arg(subline);
+          .arg(Name, L, W).arg(Mod).arg(Disp).arg(Tran).arg(subline);
 
   return s;
 }

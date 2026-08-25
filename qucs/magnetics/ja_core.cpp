@@ -129,7 +129,7 @@ QString JA_core::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
   }
 
   QString s = "X_" + Name;
-  s += QString(" %1 %2 ja_core ").arg(h_node).arg(b_node);
+  s += QString(" %1 %2 ja_core ").arg(h_node, b_node);
   QString A = spicecompat::normalize_value(getProperty("A")->Value);
   QString K = spicecompat::normalize_value(getProperty("K")->Value);
   QString C = spicecompat::normalize_value(getProperty("C")->Value);
@@ -140,7 +140,7 @@ QString JA_core::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
   QString GAP = spicecompat::normalize_value(getProperty("GAP")->Value);
 
   s += QString("A=%1 K=%2 MS=%3 C=%4 alpha=%5 AREA=%6 PATH=%7 GAP=%8\n")
-           .arg(A).arg(K).arg(MS).arg(C).arg(alpha).arg(AREA).arg(PATH).arg(GAP);
+           .arg(A, K, MS, C, alpha, AREA, PATH, GAP);
 
   return s;
 }

@@ -90,9 +90,7 @@ QString TLine::spice_netlist(spicecompat::SpiceDialect dialect)
   QString l = spicecompat::normalize_value(getProperty("L")->Value);
 
   QString s = QString("T%1 %2 0 %3 0 Z0=%4 TD={%5/%6}\n")
-                  .arg(Name)
-                  .arg(p1).arg(p2)
-                  .arg(zw).arg(l).arg(c0);
+                  .arg(Name, p1, p2, zw, l, c0);
 
   return s;
 

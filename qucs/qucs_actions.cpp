@@ -62,7 +62,6 @@
 #include "spicecomponents/sp_nutmeg.h"
 #include "textdoc.h"
 #include "wire.h"
-#include "wirelabel.h"
 
 #include "extsimkernels/xyce.h"
 
@@ -845,7 +844,7 @@ void QucsApp::slotShowLastNetlist() {
         QDir::toNativeSeparators(QucsSettings.S4Qworkdir + "/spice4qucs.cir"));
     break;
   case spicecompat::simXyce: // Xyce generates one netlist for every simulation
-    for (const auto &sim : sim_lst) {
+    for (const auto &sim : std::as_const(sim_lst)) {
       netlists.append(QDir::toNativeSeparators(QucsSettings.S4Qworkdir +
                                                "/spice4qucs." + sim + ".cir"));
     }
@@ -956,7 +955,7 @@ void QucsApp::launchTool(const QString &prog, const QString &progDesc,
 #endif
 
   // Validate if the file exists before attempting to execute
-  if (!QFileInfo(cmd).exists()) {
+  if (!QFileInfo::exists(cmd)) {
     QMessageBox::critical(
         this, tr("Error"),
         tr("Executable %1 not found! \n\n(%2)").arg(progDesc, cmd));

@@ -83,7 +83,6 @@ void Subcircuit::createSymbol() {
     while (ip.hasNext()) {
       pp = ip.next();
       if (!pp->avail) {
-        pp = ip.peekNext();
         ip.remove();
       }
     }
@@ -100,20 +99,11 @@ void Subcircuit::createSymbol() {
 // ---------------------------------------------------------------------
 void Subcircuit::remakeSymbol(int No) {
   int h = 30 * ((No - 1) / 2) + 15;
-  Lines.append(new qucs::Line(-15, -h, 15, -h, QPen(Qt::black, 2)));
-  Lines.append(new qucs::Line(15, -h, 15, h, QPen(Qt::black, 2)));
-  Lines.append(new qucs::Line(-15, h, 15, h, QPen(Qt::black, 2)));
-  Lines.append(new qucs::Line(-15, -h, -15, h, QPen(Qt::black, 2)));
-
-  QString label = QObject::tr("sub");
-  const QString filePath = Props.front()->Value;
-  if (!filePath.isEmpty() && Schematic::testFile(filePath) < 0) {
-    label = QFileInfo(filePath).completeBaseName();
-    if (label.length() > 18) {
-      label = label.left(15) + QStringLiteral("...");
-    }
-  }
-  Texts.append(new Text(-10, -6, label));
+  Lines.append(new qucs::Line(-15, -h, 15, -h, QPen(Qt::darkBlue, 2)));
+  Lines.append(new qucs::Line(15, -h, 15, h, QPen(Qt::darkBlue, 2)));
+  Lines.append(new qucs::Line(-15, h, 15, h, QPen(Qt::darkBlue, 2)));
+  Lines.append(new qucs::Line(-15, -h, -15, h, QPen(Qt::darkBlue, 2)));
+  Texts.append(new Text(-10, -6, "sub"));
 
   int i = 0, y = 15 - h;
   while (i < No) {
@@ -216,7 +206,7 @@ QString Subcircuit::netlist() {
   QString s = Model + ":" + Name;
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " " + p1->Connection->Name; // node names
 
   // type for subcircuit
@@ -236,7 +226,7 @@ QString Subcircuit::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
   QString s;
   QString f = misc::properFileName(Props.at(0)->Value);
   s += spicecompat::check_refdes(Name, SpiceModel);
-  for (Port *p1 : Ports) {
+  for (Port *p1 : std::as_const(Ports)) {
     QString nam = p1->Connection->Name;
     if (nam == "gnd")
       nam = "0";

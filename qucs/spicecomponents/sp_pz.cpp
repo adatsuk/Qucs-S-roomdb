@@ -63,8 +63,8 @@ QString SpicePZ::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
     QString s;
     QString out = "spice4qucs." + Name.toLower() + ".cir.pz";
     if (dialect != spicecompat::SPICEXyce) {
-        s = QStringLiteral("pz %1 %2 %3 %4\n").arg(Props.at(0)->Value).arg(Props.at(1)->Value)
-                .arg(Props.at(2)->Value).arg(Props.at(3)->Value);
+        s = QStringLiteral("pz %1 %2 %3 %4\n").arg(Props.at(0)->Value, Props.at(1)->Value,
+                Props.at(2)->Value, Props.at(3)->Value);
         s += QStringLiteral("echo \"PZ analysis\" >> %1\n").arg(out);
         s += "let dummy_var = 0.0\n"; // To overcome featurebug of Ngspice when printing single variable
         s += QStringLiteral("print all >> %1\n").arg(out);

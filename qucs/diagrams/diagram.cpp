@@ -114,23 +114,23 @@ void Diagram::paintDiagram(QPainter *painter) {
     painter->translate(cx, cy);
     painter->save();
 
-    for (qucs::Line* line : Lines) {
+    for (qucs::Line* line : std::as_const(Lines)) {
         painter->setPen(line->penHint());
         painter->drawLine(QLineF{line->x1, - line->y1, line->x2, - line->y2});
     }
 
-    for (qucs::Arc* arc : Arcs) {
+    for (qucs::Arc* arc : std::as_const(Arcs)) {
         painter->setPen(arc->penHint());
         painter->drawArc(QRectF{arc->x, - arc->y, arc->w, arc->h}, arc->angle, arc->arclen);
     }
 
     painter->scale(1.0, -1.0); // make Y-axis grow upwards
-    for (Graph *pg: Graphs) {
+    for (Graph *pg: std::as_const(Graphs)) {
         pg->paint(painter);
     }
     painter->restore();  // to translated(cx, cy) with no negative y-scale
 
-    for (Text *pt: Texts) {
+    for (Text *pt: std::as_const(Texts)) {
         painter->save();
 
         painter->setPen(pt->Color);
@@ -156,8 +156,8 @@ void Diagram::paintDiagram(QPainter *painter) {
 
 void Diagram::paintMarkers(QPainter *p, bool paintAll) {
     // draw markers last, so they are at the top of painting layers
-    for (Graph *pg: Graphs)
-        for (Marker *pm: pg->Markers)
+  for (Graph *pg: std::as_const(Graphs))
+      for (Marker *pm: std::as_const(pg->Markers))
             if (paintAll || (pm->Type & 1)) {
                 pm->paint(p);
             }
@@ -183,7 +183,7 @@ void Diagram::createAxisLabels() {
     y = -y1;
     if (xAxis.Label.isEmpty()) {
         // write all x labels ----------------------------------------
-        for (Graph *pg: Graphs) {
+        for (Graph *pg: std::as_const(Graphs)) {
             DataX const *pD = pg->axis(0);
             if (!pD) continue;
             y -= LineSpacing;
@@ -217,7 +217,7 @@ void Diagram::createAxisLabels() {
     y = y2 >> 1;
 
     QStringList used_kernels, used_simulations;
-    for (const auto pg: Graphs) {
+    for (const auto pg: std::as_const(Graphs)) {
       if (!pg->Var.contains("/")) continue; // Qucsator data
         QString kernel_name = pg->Var.section('/', 0, 0);
         QString var_name = pg->Var;
@@ -236,7 +236,7 @@ void Diagram::createAxisLabels() {
         // strip simulator name and simulation name like ngspice/ac.
         // if all graphs are from the same simulator and simulation
 
-        for (Graph *pg: Graphs) {
+        for (Graph *pg: std::as_const(Graphs)) {
             if (pg->yAxisNo != 0) continue;
             if (pg->cPointsY) {
                 QString var_name = pg->Var;
@@ -282,7 +282,7 @@ void Diagram::createAxisLabels() {
     y = y2 >> 1;
     if (zAxis.Label.isEmpty()) {
         // draw right y-label for all graphs ------------------------------
-        for (Graph *pg: Graphs) {
+        for (Graph *pg: std::as_const(Graphs)) {
             if (pg->yAxisNo != 1) continue;
             if (pg->cPointsY) {
                 QString var_name = pg->Var;
@@ -366,7 +366,7 @@ bool Diagram::insideDiagram(float x, float y) const {
 Marker *Diagram::setMarker(int x, int y) {
     if (getSelected(x, y)) {
         // test all graphs of the diagram
-        for (Graph *pg: Graphs) {
+        for (Graph *pg: std::as_const(Graphs)) {
             int n = pg->getSelected(x - cx, cy - y); // sic!
             if (n >= 0) {
                 assert(pg->parentDiagram() == this);
@@ -556,12 +556,14 @@ void Diagram::calcData(Graph *g) {
             for (i = g->countY; i > 0; i--) {  // every branch of curves
                 px = g->axis(0)->Points;
                 calcCoordinateP(px, pz, py, p, pa);
+                p->setIndep(*px);
                 ++px;
                 pz += 2;
                 ++p;
                 for (z = g->axis(0)->count - 1; z > 0; z--) {  // every point
                     FIT_MEMORY_SIZE;  // need to enlarge memory block ?
                     calcCoordinateP(px, pz, py, p, pa);
+                    p->setIndep(*px);
                     ++px;
                     pz += 2;
                     ++p;
@@ -723,7 +725,7 @@ void Diagram::loadGraphData(const QString &defaultDataSet) {
     yAxis.max = zAxis.max = xAxis.max = -DBL_MAX;
 
     int No = 0;
-    for (Graph *pg: Graphs) {
+    for (Graph *pg: std::as_const(Graphs)) {
         qDebug() << "load GraphData load" << defaultDataSet << pg->Var;
         if (pg->loadDatFile(defaultDataSet) != 1)   // load data, determine max/min values
             No++;
@@ -766,7 +768,7 @@ void Diagram::recalcGraphData() {
     yAxis.numGraphs = zAxis.numGraphs = 0;
 
     // get maximum and minimum values
-    for (Graph *pg: Graphs)
+    for (Graph *pg: std::as_const(Graphs))
         getAxisLimits(pg);
 
     if (xAxis.min > xAxis.max) {
@@ -793,7 +795,7 @@ void Diagram::recalcGraphData() {
 void Diagram::updateGraphData() {
     int valid = calcDiagram();   // do not calculate graph data if invalid
 
-    for (Graph *pg: Graphs) {
+    for (Graph *pg: std::as_const(Graphs)) {
         pg->clear();
         if ((valid & (pg->yAxisNo + 1)) != 0)
             calcData(pg);   // calculate screen coordinates
@@ -807,7 +809,7 @@ void Diagram::updateGraphData() {
 
     // Setting markers must be done last, because in 3D diagram "Mem"
     // is released in "createAxisLabels()".
-    for (Graph *pg: Graphs) {
+    for (Graph *pg: std::as_const(Graphs)) {
         pg->createMarkerText();
     }
 }
@@ -1267,7 +1269,7 @@ QString Diagram::save() {
     // labels can contain spaces -> must be last items in the line
     s += " \"" + xAxis.Label + "\" \"" + yAxis.Label + "\" \"" + zAxis.Label + "\">\n";
 
-    for (Graph *pg: Graphs)
+    for (Graph *pg: std::as_const(Graphs))
         s += pg->save() + "\n";
 
     s += "  </" + Name + ">";

@@ -27,6 +27,8 @@
 #include <QStack>
 #include <QString>
 
+#include "schematicvalidator.h"  // Schematic validation before simulation
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -103,6 +105,15 @@ public:
   bool closeAllLeft(int);
   bool closeAllRight(int);
   bool gotoPage(const QString &, bool reloadPage = false); // to load a document
+
+
+  /// @brief Renames the document displayed in the tab at @p index.
+  /// @param index   Index of the tab whose document should be renamed.
+  /// @param newBase New base filename (without extension).
+  /// @return true on success, false if skipped or failed.
+  bool renameDocumentTab(int index, const QString &newBase);
+
+
   QucsDoc *getDoc(int No = -1);
   QucsDoc *findDoc(QString, int *Pos = 0);
   QString fileType(const QString &);
@@ -118,6 +129,8 @@ public:
   SimMessage *sim;         // global in order to keep values
   ExternSimDialog *a_tunerExternSimDlg = nullptr;
   bool m_tunerAbortForRerun = false;
+
+  SchematicValidator a_validator; // Schematic validation
 
   // current mouse methods
   void (MouseActions::*MouseMoveAction)(Schematic *, QMouseEvent *);
@@ -194,6 +207,14 @@ public slots:
 
   void slotSimulate(QWidget *w = nullptr);
   void slotSimulateWithSpice();
+
+  /// @brief Validate the schematic before simulation.
+  /// @param w Schematic object
+  /// @param isPresimulation Flag to indicate if the "Simulate anyway" button must be added
+  /// @return 'True' No issues detected.
+  ///         'False' There are issues to solve before simulation
+  bool runSchematicChecks(QWidget *w, bool isPreSimulation);
+
   void slotAbortTuningSimulation();
   void slotTune(bool checked);
 
@@ -334,6 +355,15 @@ private:
   void changeSchematicSymbolMode(Schematic *);
   static bool recurRemove(const QString &);
   void closeFile(int);
+
+  /// @brief Rename a file
+  /// @param oldPath Full path to the existing file to be renamed.
+  /// @param newBase Desired new base name (with or without extension).
+  /// @return The new full file path on success, or an empty QString if
+  /// the rename was a no-op, cancelled, or failed.
+  /// @details The file extension is preserved. This is called from QucsApp::renameDocumentTab
+  /// and QucsApp::slotCMenuRename
+  QString renameFileOnDisk(const QString &oldPath, const QString &newBase);
 
   void updateRecentFilesList(QString s);
   void updateRecentProjectsList(QString pathToProj);
@@ -584,10 +614,37 @@ public:
 public slots:
   void showContextMenu(const QPoint &point);
 
+  /// @brief Begins inline editing of the tab label at @p index.
+  /// @details This needs to be public in order to rename open files from the project panel
+  /// @see commitRename() cancelRename
+  void startRename(int index);
+
+protected:
+  bool eventFilter(QObject *obj, QEvent *ev) override;
+
 private:
   int contextTabIndex; // index of tab where context menu was opened
   QucsApp *App;        // the main application - parent widget
+
+  /// @brief Variables for renaming the tab
+  /// @{
+  QLineEdit *tabEditor = nullptr; ///< Inline editor overlaid on a tab during rename.
+  int editIndex = -1;             ///< Index of the tab currently being renamed.
+  /// @}
+
 private slots:
+  /// @brief Variables and functions for renaming the tab
+  /// @{
+  /// @brief Slot for the tab context menu's "Rename" entry.
+  void slotCxMenuRename();
+
+  /// @brief Commits the in-place tab rename currently in progress.
+  void commitRename();
+
+  /// @brief Aborts the in-place tab rename currently in progress.
+  void cancelRename();
+  /// @}
+
   void slotCxMenuClose();
   void slotCxMenuCloseOthers();
   void slotCxMenuCloseAll();

@@ -91,7 +91,7 @@ QString vExp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::
     Q_UNUSED(dialect);
 
     QString s = spicecompat::check_refdes(Name,SpiceModel);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -104,6 +104,6 @@ QString vExp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::
     QString Tr = spicecompat::normalize_value(Props.at(4)->Value);
     QString Tf = spicecompat::normalize_value(Props.at(5)->Value);
 
-    s += QStringLiteral(" DC 0 EXP(%1 %2 %3 %4 %5 %6) AC 0\n").arg(U1).arg(U2).arg(T1).arg(Tr).arg(T2).arg(Tf);
+    s += QStringLiteral(" DC 0 EXP(%1 %2 %3 %4 %5 %6) AC 0\n").arg(U1, U2, T1, Tr, T2, Tf);
     return s;
 }

@@ -50,7 +50,7 @@ Switch::Switch()
   Props.append(new Property("Type", "SPST", true,
                             QObject::tr("Switch type)") + "[SPST,SPDT]"));
 
-  createSymbol();
+  Switch::createSymbol();
   tx = x1+4;
   ty = y2+4;
   Model = "Switch";
@@ -129,10 +129,10 @@ QString Switch::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
   if (getProperty("Type")->Value == "SPDT") {
     QString port3 = spicecompat::normalize_node_name(Ports.at(2)->Connection->Name);
     s = "X" + s;
-    s += QStringLiteral(" %1 %2 %3 control_net%4 0 spdt ").arg(port1).arg(port2).arg(port3).arg(Name);
-    s += QStringLiteral(" vt=0.5 vh=0.05 ron =%1 roff =%2\n").arg(Ron).arg(Roff);
+    s += QStringLiteral(" %1 %2 %3 control_net%4 0 spdt ").arg(port1, port2, port3, Name);
+    s += QStringLiteral(" vt=0.5 vh=0.05 ron =%1 roff =%2\n").arg(Ron, Roff);
   } else {
-    s += QStringLiteral(" %1 %2 control_net%3 0 switch_model%3\n").arg(port1).arg(port2).arg(Name);
+    s += QStringLiteral(" %1 %2 control_net%3 0 switch_model%3\n").arg(port1, port2, Name);
 
   }
 
@@ -160,7 +160,7 @@ QString Switch::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
     evenValue = "0";
   }
 
-  s += QStringLiteral("V%1 control_net%1 0 DC %2 PWL(0 %2").arg(Name).arg(oddValue);
+  s += QStringLiteral("V%1 control_net%1 0 DC %2 PWL(0 %2").arg(Name, oddValue);
 
   for (int i = 0; i < timesList.size(); i++) {
     QString timeStep = timesList[i].toLower();
@@ -192,7 +192,7 @@ QString Switch::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
   s += ")\n";
 
   if (getProperty("Type")->Value == "SPST") {
-    s += QStringLiteral(".model switch_model%1 sw vt =0.5 ron =%2 roff =%3\n").arg(Name).arg(Ron).arg(Roff);
+    s += QStringLiteral(".model switch_model%1 sw vt =0.5 ron =%2 roff =%3\n").arg(Name, Ron, Roff);
   }
   return s;
 }

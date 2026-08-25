@@ -37,7 +37,7 @@ Logical_Buf::Logical_Buf()
   Props.append(new Property("Symbol", "old", false,
 		QObject::tr("schematic symbol")+" [old, DIN40900]"));
 
-  createSymbol();
+  Logical_Buf::createSymbol();
   tx = x1+4;
   ty = y2+4;
   Model = "Buf";
@@ -146,6 +146,6 @@ QString Logical_Buf::spice_netlist(spicecompat::SpiceDialect dialect /* = spicec
     s += " " + Ports.at(0)->Connection->Name;
     s += " " + tmp_model + "\n";
     s += QStringLiteral(".model %1 d_buffer(rise_delay=%2 fall_delay=%2 input_load=5e-13)\n")
-            .arg(tmp_model).arg(td);
+            .arg(tmp_model, td);
     return s;
 }

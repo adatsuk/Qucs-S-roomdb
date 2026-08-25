@@ -81,7 +81,7 @@ QString S4Q_Include::getSpiceLibrary()
     QString s;
     s.clear();
 
-    for (Property *pp : Props) {
+    for (Property *pp : std::as_const(Props)) {
         QString val = pp->Value;
         if (!val.isEmpty()) {
             // manually expand env. vars for Xyce
@@ -91,10 +91,10 @@ QString S4Q_Include::getSpiceLibrary()
             val = misc::properAbsFileName(val, containingSchematic);
             switch (QucsSettings.DefaultSimulator) {
             case spicecompat::simSpiceOpus: // Spice Opus doesn't support quotes
-                s += QStringLiteral("%1 %2\n").arg(SpiceModel).arg(val);
+                s += QStringLiteral("%1 %2\n").arg(SpiceModel, val);
                 break;
             default:
-                s += QStringLiteral("%1 \"%2\"\n").arg(SpiceModel).arg(val);
+                s += QStringLiteral("%1 \"%2\"\n").arg(SpiceModel, val);
                 break;
             }
         }
@@ -106,7 +106,7 @@ QString S4Q_Include::getSpiceLibrary()
 QStringList S4Q_Include::getSpiceLibraryFiles()
 {
   QStringList files;
-  for (Property *pp : Props) {
+  for (Property *pp : std::as_const(Props)) {
     QString val = pp->Value;
     if (!val.isEmpty()) {
       val = misc::properAbsFileName(val, containingSchematic);

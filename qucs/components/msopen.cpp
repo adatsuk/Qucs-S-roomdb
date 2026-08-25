@@ -91,9 +91,9 @@ QString MSopen::spice_netlist(spicecompat::SpiceDialect dialect)
   int Mopen = spicecompat::strToMsopenModel(getProperty("Model")->Value);
 
   s = QString("A_%1 %gd(%2 0) MODEL_%1\n")
-          .arg(Name).arg(p1);
+          .arg(Name, p1);
   s += QString(".MODEL MODEL_%1 MSOPEN(w=%2 model=%3 disp=%4 msopen_model=%5 %6)\n")
-           .arg(Name).arg(W).arg(Mod).arg(Disp).arg(Mopen).arg(subline);
+           .arg(Name, W).arg(Mod).arg(Disp).arg(Mopen).arg(subline);
 
   return s;
 }

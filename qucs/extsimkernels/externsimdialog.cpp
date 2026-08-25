@@ -379,7 +379,7 @@ bool ExternSimDialog::logContainsError(const QString &out)
     default: err_patterns<<"error";
         break;
     }
-    for(const auto &err_str: err_patterns) {
+    for(const auto &err_str: std::as_const(err_patterns)) {
         if (out.contains(err_str)) {
             found = true;
             break;
@@ -404,7 +404,7 @@ bool ExternSimDialog::logContainsWarning(const QString &out)
     default: warn_patterns<<"warning";
         break;
     }
-    for(const auto &warn_str: warn_patterns) {
+    for(const auto &warn_str: std::as_const(warn_patterns)) {
         if (out.contains(warn_str)) {
             found = true;
             break;

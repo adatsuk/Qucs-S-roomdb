@@ -62,7 +62,7 @@ QString vacompat::normalize_voltage(QString &plus, QString &minus, bool left_sid
         if (left_side) s = QStringLiteral("V(%1)").arg(minus);
         else s = QStringLiteral("(-V(%1))").arg(minus);
     } else if (minus=="gnd") s = QStringLiteral("V(%1)").arg(plus);
-    else s = QStringLiteral("V(%1,%2)").arg(plus).arg(minus);
+    else s = QStringLiteral("V(%1,%2)").arg(plus, minus);
     return s;
 }
 
@@ -73,7 +73,7 @@ QString vacompat::normalize_current(QString &plus, QString &minus, bool left_sid
         if (left_side) s = QStringLiteral("I(%1)").arg(minus);
        else s = QStringLiteral("(-I(%1))").arg(minus);
     } else if (minus=="gnd") s = QStringLiteral("I(%1)").arg(plus);
-    else s = QStringLiteral("I(%1,%2)").arg(plus).arg(minus);
+    else s = QStringLiteral("I(%1,%2)").arg(plus, minus);
     return s;
 }
 
@@ -167,7 +167,7 @@ bool VerilogAwriter::createVA_module(QTextStream &stream, Schematic *sch)
             QString s = pc->Ports.first()->Connection->Name;
             if (!ports.contains(s)) ports.append(s);
         } else {
-            for (Port *pp : pc->Ports) { // Find all signals
+            for (Port *pp : std::as_const(pc->Ports)) { // Find all signals
                 QString s = pp->Connection->Name;
                 if (!nodes.contains(s)) nodes.append(s);
             }
@@ -182,7 +182,7 @@ bool VerilogAwriter::createVA_module(QTextStream &stream, Schematic *sch)
     base.remove('-').remove(' ');
     nodes.removeAll("gnd"); // Exclude ground node
 
-    stream<<QStringLiteral("module %1(%2);\n").arg(base).arg(ports.join(", "));
+    stream<<QStringLiteral("module %1(%2);\n").arg(base, ports.join(", "));
     stream<<QStringLiteral("inout %1;\n").arg(ports.join(", "));
     stream<<QStringLiteral("electrical %1;\n").arg(nodes.join(", "));
 

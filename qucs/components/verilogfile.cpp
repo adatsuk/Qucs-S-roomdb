@@ -175,7 +175,7 @@ bool Verilog_File::createSubNetlist(QTextStream *stream)
   QString FileName = Props.front()->Value;
   if(FileName.isEmpty()) {
     ErrText += QObject::tr("ERROR: No file name in %1 component \"%2\".").
-      arg(Model).arg(Name);
+      arg(Model, Name);
     return false;
   }
 
@@ -186,7 +186,7 @@ bool Verilog_File::createSubNetlist(QTextStream *stream)
   QFile f(FileName);
   if(!f.open(QIODevice::ReadOnly)) {
     ErrText += QObject::tr("ERROR: Cannot open %1 file \"%2\".").
-      arg(Model).arg(FileName);
+      arg(Model, FileName);
     return false;
   }
 

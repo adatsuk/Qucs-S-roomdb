@@ -25,6 +25,7 @@
 
 #include <QDialog>
 #include <QSpinBox>
+#include <QGroupBox>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <vector>
@@ -69,6 +70,7 @@ private slots:
   void slotCancel();
   void slotSetColor();
   void slotSetGridColor();
+  void slotToggleGradient(int);
   void slotResetToTake(const QString&);
   void slotSetNumMode(int);
   void slotSetGridBox(int);
@@ -128,11 +130,12 @@ private slots:
   void slotSetPrecision(int);
 
 protected slots:
-    void reject();
+    void reject() override;
 
 private:
   void SelectGraph(Graph*);
   void updateXVar();
+  QString colorButtStyleSheet(bool gradientEnabled, const QColor& solid) const;
   ///
   /// \brief Updates the content of the graph list to see the trace name along with the trace properties
   /// \param row: Number of the row to update
@@ -171,6 +174,8 @@ private:
   QLabel      *thicknessLabel, *precisionLabel;
   QComboBox   *PropertyBox, *GridStyleBox, *yAxisBox, *NotationBox;
   QPushButton *ColorButt, *GridColorButt;
+  QCheckBox   *GradientCheck;
+  QGroupBox   *ColorGroupBox;
   QSlider     *SliderRotX, *SliderRotY, *SliderRotZ;
   Cross3D     *DiagCross;
   bool changed, transfer, toTake;

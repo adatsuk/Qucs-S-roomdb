@@ -114,9 +114,9 @@ QString MScoupled::spice_netlist(spicecompat::SpiceDialect dialect)
 
   s = QString("A_%1 %hd(%2 0) %hd(%3 0) %hd(%4 0) %hd(%5 0)"
               " %vd(%2 0) %vd(%3 0) %vd(%4 0) %vd(%5 0) MODEL_%1\n")
-          .arg(Name).arg(p1).arg(p2).arg(p3).arg(p4);
+          .arg(Name, p1, p2, p3, p4);
   s += QString(".MODEL MODEL_%1 CPMLIN(L=%2 W=%3 S=%4 model=%5 disp=%6 tranmodel=%7 %8)\n")
-           .arg(Name).arg(L).arg(W).arg(S).arg(Mod).arg(Disp).arg(Tran).arg(subline);
+           .arg(Name, L, W, S).arg(Mod).arg(Disp).arg(Tran).arg(subline);
 
   return s;
 }

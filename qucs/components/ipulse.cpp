@@ -107,7 +107,7 @@ QString iPulse::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
 
 
     s += QStringLiteral(" DC 0 PULSE(%1 %2 %3 %4 %5 {(%6)-(%3)-(%4)-(%5)}) AC 0\n")
-             .arg(IL).arg(IH).arg(T1).arg(Tr).arg(Tf).arg(T2);
+             .arg(IL, IH, T1, Tr, Tf, T2);
 
     return s;
 }

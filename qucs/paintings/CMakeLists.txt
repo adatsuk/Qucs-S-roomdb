@@ -20,6 +20,7 @@ paintings.h
 portsymbol.h
 rectangle.h
 imagepainting.h
+SVGGalleryDialog.h
 )
 
 SET(PAINTINGS_SRCS
@@ -30,6 +31,7 @@ ellipse.cpp	graphictextdialog.cpp
 portsymbol.cpp ellipsearc.cpp
 rectangle.cpp filldialog.cpp imagepainting.cpp
 id_dialog.cpp
+SVGGalleryDialog.cpp
 )
 
 SET(PAINTINGS_MOC_HDRS

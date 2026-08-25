@@ -13,10 +13,10 @@ set(DIALOGS_HDRS
     digisettingsdialog.h
     exportdialog.h
     importdialog.h
-    labeldialog.h
     librarydialog.h
     loaddialog.h
     matchdialog.h
+    netpropertiesdialog.h
     newprojdialog.h
     qucssettingsdialog.h
     qucsshortcutdialog.h
@@ -43,12 +43,12 @@ set(DIALOGS_SRCS
     qucssettingsdialog.cpp
     importdialog.cpp
     savedialog.cpp
-    labeldialog.cpp
     searchdialog.cpp
     librarydialog.cpp
     settingsdialog.cpp
     matchdialog.cpp
     simmessage.cpp
+    netpropertiesdialog.cpp
     newprojdialog.cpp
     sweepdialog.cpp
     exportdialog.cpp
@@ -67,7 +67,6 @@ set(DIALOGS_MOC_HDRS
     digisettingsdialog.h
     exportdialog.h
     importdialog.h
-    labeldialog.h
     librarydialog.h
     loaddialog.h
     matchdialog.h

@@ -72,7 +72,6 @@
 #include "dialogs/qucssettingsdialog.h"
 #include "dialogs/searchdialog.h"
 #include "dialogs/sweepdialog.h"
-#include "dialogs/labeldialog.h"
 #include "dialogs/matchdialog.h"
 #include "dialogs/simmessage.h"
 #include "dialogs/exportdialog.h"
@@ -94,7 +93,6 @@
 QucsApp::QucsApp(bool netlist2Console) :
   a_netlist2Console(netlist2Console)
 {
-  QucsMain = this;
   windowTitle = misc::getWindowTitle();
   setWindowTitle(windowTitle);
 
@@ -656,7 +654,7 @@ bool QucsApp::populateLibTreeFromDir(const QString &LibDirPath, QList<QTreeWidge
     QDir LibDir(LibDirPath);
     QStringList LibFiles = LibDir.entryList(QStringList("*.lib"), QDir::Files, QDir::Name);
     QStringList blacklist = getBlacklistedLibraries(QucsSettings.LibDir);
-    for (const QString& ss: blacklist) { // exclude blacklisted files
+    for (const QString& ss: std::as_const(blacklist)) { // exclude blacklisted files
         LibFiles.removeAll(ss);
     }
     // create top level library items, base on the library names
@@ -776,7 +774,7 @@ int QucsApp::fillComboBox(bool setAll) {
         CompChoose->insertItem(CompChoose->count(), QObject::tr("paintings"));
     } else {
         QStringList cats = Category::getCategories();
-        for (const QString &it: cats) {
+        for (const QString &it: std::as_const(cats)) {
             CompChoose->insertItem(CompChoose->count(), it);
         }
         idx = CompChoose->findText(currentText);
@@ -1011,7 +1009,7 @@ void QucsApp::slotSearchComponent(const QString &searchText)
 
     QStringList cats = Category::getCategories ();
     int catIdx = 0;
-    for (const QString& it : cats) {
+    for (const QString& it : std::as_const(cats)) {
       // this will go also over the "verilog-a user devices" category, if present
       //   but since modules there have no 'info' function it won't handle them
       Comps = Category::getModules(it);
@@ -1334,13 +1332,17 @@ void QucsApp::slotCMenuRename()
   QString file(QucsSettings.QucsWorkDir.filePath(filename));
   QFileInfo fileinfo(file);
 
-  if (findDoc(file)) {
-    QMessageBox::critical(this, tr("Error"),
-        tr("Cannot rename an open file!"));
+  int index=0;
+  QucsDoc* Doc = findDoc(file, &index);
+
+  if (Doc){
+    // The document is already open in the tab, so use the rename on tab feature
+    DocumentTab->startRename(index);
     return;
   }
 
-  QString suffix = fileinfo.suffix();
+  // The file is not open
+
   QString base = fileinfo.completeBaseName();
   if(base.isEmpty()) {
     base = filename;
@@ -1349,18 +1351,46 @@ void QucsApp::slotCMenuRename()
   bool ok;
   QString s = QInputDialog::getText(this, tr("Rename file"), tr("Enter new filename:"), QLineEdit::Normal, base, &ok);
 
-  if(ok && !s.isEmpty()) {
-    if (!s.endsWith(suffix)) {
-      s += QStringLiteral(".") + suffix;
-    }
-    QDir dir(QucsSettings.QucsWorkDir.path());
-    if(!dir.rename(filename, s)) {
-      QMessageBox::critical(this, tr("Error"), tr("Cannot rename file: %1").arg(filename));
-      return;
-    }
+  if (!ok || s.isEmpty())
+    return;
 
+  if (!renameFileOnDisk(file, s).isEmpty()) {
     slotUpdateTreeview();
   }
+}
+
+QString QucsApp::renameFileOnDisk(const QString &oldPath, const QString &newBase)
+{
+  QFileInfo info(oldPath);
+  QString suffix = info.suffix();
+  QString base = info.completeBaseName();
+  if (base.isEmpty())
+    base = info.fileName();
+
+         // Allow callers to pass a name that already includes the extension.
+  QString requestedBase = newBase;
+  if (!suffix.isEmpty() && requestedBase.endsWith("." + suffix)) {
+    requestedBase.chop(suffix.length() + 1);
+  }
+
+  if (requestedBase.isEmpty() || requestedBase == base)
+    return QString(); // no change / cancel
+
+  QString newName = suffix.isEmpty() ? requestedBase : requestedBase + "." + suffix;
+  QDir dir = info.dir();
+  QString newPath = dir.filePath(newName);
+
+  if (QFile::exists(newPath)) {
+    QMessageBox::critical(this, tr("Error"),
+                          tr("A file named '%1' already exists!").arg(newName));
+    return QString();
+  }
+  if (!dir.rename(info.fileName(), newName)) {
+    QMessageBox::critical(this, tr("Error"),
+                          tr("Cannot rename file: %1").arg(info.fileName()));
+    return QString();
+  }
+  return newPath;
 }
 
 void QucsApp::slotCMenuDelete()
@@ -1370,7 +1400,7 @@ void QucsApp::slotCMenuDelete()
 
          // We only want column 0 items (file names)
   QSet<QString> filesToDelete; // Use QSet to avoid duplicates
-  for (const QModelIndex &index : selected) {
+  for (const QModelIndex &index : std::as_const(selected)) {
     if (index.column() == 0 && index.parent().isValid()) {
       QString filename = index.sibling(index.row(), 0).data().toString();
       filesToDelete.insert(filename);
@@ -1742,14 +1772,26 @@ bool QucsApp::gotoPage(const QString& Name, bool reloadPage)
 
   QFileInfo Info(Name);
   bool is_sch = false;
+  const bool isCoreView =
+#ifdef QUCS_ENABLE_CORE
+      qucs_core::isCoreViewPath(Name);
+#else
+      false;
+#endif
   const bool isCoreSchematic =
 #ifdef QUCS_ENABLE_CORE
       qucs_core::isCoreSchematicPath(Name);
 #else
       false;
 #endif
+  const bool isCoreSymbol =
+#ifdef QUCS_ENABLE_CORE
+      qucs_core::isCoreSymbolPath(Name);
+#else
+      false;
+#endif
   if(Info.suffix() == "sch" || Info.suffix() == "dpl" ||
-     Info.suffix() == "sym" || isCoreSchematic) {
+     Info.suffix() == "sym" || isCoreView) {
     d = new Schematic(this, Name);
     i = addDocumentTab((Schematic *)d, Info.fileName());
     is_sch = true;
@@ -1774,13 +1816,12 @@ bool QucsApp::gotoPage(const QString& Name, bool reloadPage)
     return false;
   }
   slotChangeView();
-  if (Info.suffix() == "sym") {
-    // We dealing with a file containing *only* a symbol definition.
-    // Because of that we want to switch straight to symbol editing mode
-    // and skip any actions performed with a usual schematic.
+  if (Info.suffix() == "sym" || isCoreSymbol) {
+    // Symbol-only documents: switch to symbol editor the same way as native .sym files.
     Schematic *sch = (Schematic *)d;
     slotSymbolEdit();
     sch->setIsSymbolOnly(true);
+    QTimer::singleShot(0, sch, [sch]() { sch->showAll(); });
   } else if (is_sch) {
       Schematic *sch = (Schematic *)d;
       if (sch->checkDplAndDatNames()) sch->setChanged(true,true);
@@ -1841,6 +1882,13 @@ bool QucsApp::saveFile(QucsDoc *Doc)
     updatePortNumber(Doc, Result);
   }
   slotUpdateTreeview();
+
+  // Schematic check
+  if (_settings::Get().item<bool>("ValidateOnSave")){
+    QWidget *w = DocumentTab->currentWidget();
+    runSchematicChecks(w, false);
+  }
+
   return true;
 }
 
@@ -1904,7 +1952,7 @@ bool QucsApp::saveAs()
               << tr("Any File")+" (*)";
       Filter = Filters.join("");
       bool found = false;
-      for (const auto &ss: Filters) {
+      for (const auto &ss: std::as_const(Filters)) {
         if (ss.contains(file_ext)) {
           found = true;
           selfilter = ss;
@@ -2692,6 +2740,13 @@ void QucsApp::slotSimulate(QWidget *w)
       }
   }
 
+  // Validate the schematic against that backend's known limitations before running the simulation.
+  // Schematic validation is skipped in "Tuning mode". It also needs to be enabled in the Settings panel.
+  if (!TuningMode && _settings::Get().item<bool>("EnableSchematicValidation")) {
+    if (runSchematicChecks(w, true))
+      return;
+  }
+
   if (QucsSettings.DefaultSimulator!=spicecompat::simQucsator && !isDigital) {
       slotSimulateWithSpice();
       return;
@@ -2960,7 +3015,7 @@ void QucsApp::slotOpenContent(const QModelIndex &idx)
     QSet<QString> openedFiles; // To avoid opening duplicates
 
      // We only want column 0 items (file names)
-    for (const QModelIndex &index : selected) {
+    for (const QModelIndex &index : std::as_const(selected)) {
       if (index.column() == 0 && index.parent().isValid()) {
         QString filename = index.sibling(index.row(), 0).data().toString();
         QString note = index.sibling(index.row(), 1).data().toString();
@@ -3771,6 +3826,101 @@ void QucsApp::slotSimulateWithSpice()
     }
 }
 
+bool QucsApp::runSchematicChecks(QWidget *w, bool isPreSimulation)
+{
+  Schematic *sch = qobject_cast<Schematic*>(w);
+  if (!sch) {
+    // Nothing to check unless the document is an schematic
+    return false;
+  }
+
+  // Get the backend simulator
+  QString backend = simulatorsCombobox->currentText().toLower();
+
+  if (isPreSimulation && TuningMode) {
+    // Skip validation in tuning mode
+    return false;
+  }
+
+  const QString settingKey = isPreSimulation ? "EnableSchematicValidation" : "ValidateOnSave";
+  if (!_settings::Get().item<bool>(settingKey))
+    return false;
+
+  a_validator.setSimulationBackend(backend);
+  a_validator.setSchematic(sch);
+  QVector<ValidationIssue> issues = a_validator.validate();
+  if (issues.isEmpty())
+    return false;
+
+  QDialog dlg(this);
+  dlg.setWindowTitle(isPreSimulation ? tr("Issues found") : tr("Schematic issues found"));
+  QVBoxLayout *layout = new QVBoxLayout(&dlg);
+  QLabel *header = new QLabel(tr("The schematic contains %1 issue(s)").arg(issues.size()), &dlg);
+  header->setWordWrap(true);
+  layout->addWidget(header);
+
+  QTextEdit *textArea = new QTextEdit(&dlg);
+  textArea->setReadOnly(true);
+  QString html;
+  for (int i = 0; i < issues.size(); ++i) {
+    const ValidationIssue &issue = issues[i];
+    // Severity formatting
+    QColor severityColor;
+    QString severity;
+    switch (issue.severity){
+    case 1: // Critical
+      severityColor = Qt::red;
+      severity = QString("Critical");
+      break;
+    case 2: // Warning
+      severityColor = Qt::darkYellow;
+      severity = QString("Warning");
+      break;
+    case 3: // Minor
+      severityColor = Qt::blue;
+      severity = QString("Minor");
+      break;
+    }
+    html += QString("<p><b>%1 #%2 - %3 [<span style='color:%4'>%5</span>]</b>"
+                    "<br><i>%6</i><br><b>Suggested fix</b>: %7</p>")
+                .arg(tr("Issue"))
+                .arg(i + 1)
+                .arg(issue.title.toHtmlEscaped(), severityColor.name(),
+                     severity, issue.message.toHtmlEscaped(),
+                     issue.suggestedFix.toHtmlEscaped());
+  }
+  textArea->setHtml(html);
+  layout->addWidget(textArea);
+
+  QDialogButtonBox *buttons = new QDialogButtonBox(&dlg);
+  if (isPreSimulation) {
+    // Go back to the schematic and fix the issues
+    QPushButton *fixButton = buttons->addButton(tr("Ok"), QDialogButtonBox::AcceptRole);
+    fixButton->setToolTip(tr("Go back to the schematic and fix the issues"));
+    connect(fixButton, &QPushButton::clicked, &dlg, &QDialog::reject);
+
+    // Simulate anyway
+    QPushButton *proceedButton = buttons->addButton(tr("Simulate Anyway"), QDialogButtonBox::RejectRole);
+    proceedButton->setToolTip(tr("Run the simulation"));
+    connect(proceedButton, &QPushButton::clicked, &dlg, &QDialog::accept);
+  } else {
+    // The file is saved
+    QPushButton *okButton = buttons->addButton(tr("OK"), QDialogButtonBox::AcceptRole);
+    connect(okButton, &QPushButton::clicked, &dlg, &QDialog::accept);
+  }
+  layout->addWidget(buttons);
+
+  dlg.resize(480, 280);
+  int result = dlg.exec();
+
+  if (!isPreSimulation) {
+    return false;
+  }
+
+  return result != QDialog::Accepted; // true = block simulation
+}
+
+
 void QucsApp::slotSaveNetlist()
 {
     if (QucsSettings.DefaultSimulator == spicecompat::simQucsator)
@@ -4060,7 +4210,7 @@ void QucsApp::runPostSimCommands(Schematic* sch)
     // Join multi-line commands into a single shell statement, skipping comments and blank lines
     QStringList lines = cmd.split('\n', Qt::SkipEmptyParts);
     QStringList filteredLines;
-    for (const QString& line : qAsConst(lines)) {
+    for (const QString& line : std::as_const(lines)) {
       QString trimmed = line.trimmed();
       if (trimmed.isEmpty() || trimmed.startsWith('#'))
         continue;
@@ -4094,7 +4244,7 @@ void QucsApp::runPostSimCommands(Schematic* sch)
         terms = {"konsole", "gnome-terminal", "xfce4-terminal", "lxterminal", "xterm", "qterminal", "ptyxis"};
       }
       bool launched = false;
-      for (const QString& term : terms) {
+      for (const QString& term : std::as_const(terms)) {
         QString exe = QStandardPaths::findExecutable(term);
         if (exe.isEmpty()) {
           continue;
@@ -4136,6 +4286,40 @@ void QucsApp::runPostSimCommands(Schematic* sch)
 #endif
     }
   }
+}
+
+bool QucsApp::renameDocumentTab(int index, const QString &newBase)
+{
+  QucsDoc *Doc = getDoc(index);
+  if (!Doc) return false;
+
+  // Check if the document has unsaved changes
+  if (Doc->getDocChanged()) {
+    QMessageBox::StandardButton answer = QMessageBox::warning(this, tr("Renaming Qucs-S document"),
+                         tr("The document contains unsaved changes!\n") +
+                             tr("Do you want to save and rename?"), QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+
+    if (answer != QMessageBox::Yes){
+      // The user doesn't want to save and rename -> Cancel
+      return false;
+    }
+
+    // Save the document.
+    Doc->save();
+  }
+
+  QString newPath = renameFileOnDisk(Doc->getDocName(), newBase);
+  if (newPath.isEmpty())
+    return false;
+
+  Doc->setName(newPath);
+  DocumentTab->setTabText(index, misc::properFileName(newPath));
+  DocumentTab->setTabToolTip(index, newPath);
+  if (index == DocumentTab->currentIndex())
+    slotChangeView();
+  slotUpdateTreeview();
+  updateRecentFilesList(newPath);
+  return true;
 }
 
 QVariant QucsFileSystemModel::data( const QModelIndex& index, int role ) const
@@ -4197,6 +4381,7 @@ ContextMenuTabWidget::ContextMenuTabWidget(QucsApp *parent) : QTabWidget(parent)
   App = parent;
   setContextMenuPolicy(Qt::CustomContextMenu);
   connect(this, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(showContextMenu(const QPoint&)));
+  connect(tabBar(), SIGNAL(tabBarDoubleClicked(int)), this, SLOT(startRename(int)));
 }
 
 void ContextMenuTabWidget::showContextMenu(const QPoint& point)
@@ -4226,6 +4411,8 @@ void ContextMenuTabWidget::showContextMenu(const QPoint& point)
     menu.addSeparator();
     APPEND_MENU(ActionCxMenuCopyPath, slotCxMenuCopyPath, "Copy full path")
     APPEND_MENU(ActionCxMenuOpenFolder, slotCxMenuOpenFolder, "Open containing folder")
+    APPEND_MENU(ActionCxMenuRename, slotCxMenuRename, "Rename")
+
 #undef APPEND_MENU
 
     menu.exec(tabBar()->mapToGlobal(point));
@@ -4280,4 +4467,73 @@ void ContextMenuTabWidget::slotCxMenuOpenFolder()
     QFileInfo Info(dName);
     QDesktopServices::openUrl(QUrl::fromLocalFile(Info.canonicalPath()));
   }
+}
+
+
+void ContextMenuTabWidget::startRename(int index)
+{
+  if (index < 0) return;
+
+  QucsDoc *Doc = App->getDoc(index);
+  if (!Doc || Doc->getDocName().isEmpty()) {
+    QMessageBox::information(this, tr("Info"),
+                             tr("Please save the document first before renaming it."));
+    return;
+  }
+
+  editIndex = index;
+
+  if (!tabEditor) {
+    tabEditor = new QLineEdit(tabBar());
+    tabEditor->setFrame(false);
+    connect(tabEditor, SIGNAL(editingFinished()), this, SLOT(commitRename()));
+    tabEditor->installEventFilter(this);
+  }
+
+  QFileInfo info(Doc->getDocName());
+  tabEditor->setGeometry(tabBar()->tabRect(index).adjusted(2, 2, -2, -2));
+  tabEditor->setText(info.completeBaseName());  // edit the base name only
+  tabEditor->show();
+  tabEditor->raise();
+  tabEditor->selectAll();
+  tabEditor->setFocus();
+}
+
+void ContextMenuTabWidget::commitRename()
+{
+  if (!tabEditor || editIndex < 0) return;
+
+  int idx = editIndex;
+  editIndex = -1;                 // guard against re-entrancy from hide()->focusOut
+  QString newBase = tabEditor->text();
+  tabEditor->hide();
+
+  App->renameDocumentTab(idx, newBase);   // does the actual file/Doc rename
+}
+
+void ContextMenuTabWidget::cancelRename()
+{
+  editIndex = -1;
+  if (tabEditor) tabEditor->hide();
+}
+
+bool ContextMenuTabWidget::eventFilter(QObject *obj, QEvent *ev)
+{
+  if (obj == tabEditor && (ev->type() == QEvent::KeyPress || ev->type() == QEvent::ShortcutOverride)) {
+    QKeyEvent *ke = static_cast<QKeyEvent*>(ev);
+    if (ke->key() == Qt::Key_Escape) {
+      if (ev->type() == QEvent::ShortcutOverride) {
+          ev->accept();
+          return true;
+      }
+      cancelRename();
+      return true;
+    }
+  }
+  return QTabWidget::eventFilter(obj, ev);
+}
+
+void ContextMenuTabWidget::slotCxMenuRename()
+{
+  startRename(contextTabIndex);
 }

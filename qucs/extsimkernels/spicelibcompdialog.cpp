@@ -315,7 +315,7 @@ int SpiceLibCompDialog::parseLibFile(const QString &filename)
       if (line.startsWith("+")) {
         line.remove(0,1);
         QStringList pins = line.split(QRegularExpression("[ \\t]"),Qt::SkipEmptyParts);
-        for (const auto &s1: pins) {
+        for (const auto &s1: std::as_const(pins)) {
           if (s1 == "PARAMS:" || s1 == ".OPTIONAL:") {
             header_start = false;
           }
@@ -343,7 +343,7 @@ int SpiceLibCompDialog::parseLibFile(const QString &filename)
       } else continue;
       tokens.removeFirst();
       tokens.removeFirst();
-      for (const auto &s1: tokens) {
+      for (const auto &s1: std::as_const(tokens)) {
         if (s1 == "PARAMS:" || s1 == ".OPTIONAL:") {
           header_start = false;
         }
@@ -447,7 +447,7 @@ void SpiceLibCompDialog::slotTableCellDoubleClick()
   // Ports might not be in a linear range; use the actual indices directly
   // to ensure correct lookup
   QList<int> portIndices = a_symbol->getPortIndices();
-  for (int i : portIndices) {
+  for (int i : std::as_const(portIndices)) {
     bool pinAssigned = false;
     for(int j = 0; j < a_tbwPinsTable->rowCount(); j++) {
       if (j == r) continue;

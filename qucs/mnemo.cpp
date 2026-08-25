@@ -94,18 +94,18 @@ void encode_String(const QString &Input, QString &Output) {
 
   Output = "";
   while ((Begin = Input.indexOf('\\', Begin)) >= 0) {
-    Output += Input.mid(End, Begin - End);
+    Output += QStringView(Input).mid(End, Begin - End);
     End = Begin++;
 
     for (const auto &sc : SpecialChars) { // test all special characters
-      if (Input.mid(Begin).startsWith(sc.Mnemonic)) {
+      if (QStringView(Input).mid(Begin).startsWith(QLatin1String(sc.Mnemonic))) {
         Output += QChar(sc.Unicode);
         End = Begin + strlen(sc.Mnemonic);
         break;
       }
     }
   }
-  Output += Input.mid(End);
+  Output += QStringView(Input).mid(End);
 }
 
 // This function replaces the unicode of special characters

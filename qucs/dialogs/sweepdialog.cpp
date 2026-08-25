@@ -45,7 +45,6 @@ mySpinBox::mySpinBox(int Min, int Max, int Step, double *Val, QWidget *Parent)
 }
 
 
-#include <iostream>
 using namespace std;
 QString mySpinBox::textFromValue(int Val) const
 {

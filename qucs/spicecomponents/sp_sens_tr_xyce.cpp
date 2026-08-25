@@ -70,13 +70,13 @@ QString SpiceSENS_TR_Xyce::spice_netlist(spicecompat::SpiceDialect dialect /* = 
         QString start = spicecompat::normalize_value(Props.at(3)->Value);
         QString stop = spicecompat::normalize_value(Props.at(4)->Value);
         QString step = spicecompat::normalize_value(Props.at(5)->Value);
-        s = QStringLiteral(".tran %1 %2 %3").arg(start).arg(stop).arg(step);
+        s = QStringLiteral(".tran %1 %2 %3").arg(start, stop, step);
         if (Props.at(6)->Value=="yes") s +="\n";
         else s += " uic\n";
         if (Props.at(2)->Value=="direct") s += ".options sensitivity direct=1 adjoint=0\n";
         else s += ".options sensitivity direct=0 adjoint=1\n";
         s += QStringLiteral(".sens objfunc={%1} param=%2\n")
-                .arg(Props.at(0)->Value).arg(Props.at(1)->Value);
+                .arg(Props.at(0)->Value, Props.at(1)->Value);
         if (Props.at(2)->Value=="direct") {
             s += ".print sens\n";
         } else {

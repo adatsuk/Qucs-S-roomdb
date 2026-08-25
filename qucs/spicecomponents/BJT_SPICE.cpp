@@ -41,7 +41,7 @@ BJT_SPICE::BJT_SPICE()
     Props.append(new Property("Model_Line 4", "", false,"+ continuation line 3"));
     Props.append(new Property("Model_Line 5", "", false,"+ continuation line 4"));
 
-    createSymbol();
+    BJT_SPICE::createSymbol();
     tx = x1+4;
     ty = y2+4;
 
@@ -192,7 +192,7 @@ QString BJT_SPICE::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecom
 
     QString ltr =getProperty("Letter")->Value;
     QString s = spicecompat::check_refdes(Name,ltr);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam+" ";   // node names

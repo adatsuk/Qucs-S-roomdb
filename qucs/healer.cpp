@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <concepts>
-#include <limits>
 #include <memory>
 #include <ranges>
 #include <set>
@@ -122,7 +121,7 @@ Node* GenericPort::replaceNodeWith(Node* new_node)
 
             // Ensure that only this and no other port of the component
             // is connected to the new node.
-            for (auto* p : m_comp->Ports) {
+            for (auto* p : std::as_const(m_comp->Ports)) {
                 if (p->Connection == new_node && p != m_port) {
                     p->Connection = nullptr;
                 }
@@ -189,6 +188,7 @@ Node* GenericPort::node() const
     case PortType::Component:
       return m_port->Connection;
     }
+    return nullptr;
 }
 
 
@@ -327,7 +327,7 @@ Healer::HealerImpl::HealerImpl(const std::list<Component*>* components, const st
     , m_affectedCount{affected_count}
 {
     for (auto* comp : *components) {
-        for (auto* port : comp->Ports) {
+        for (auto* port : std::as_const(comp->Ports)) {
             m_port_groups[port->Connection].push_back(std::make_unique<GenericPort>(port, comp));
         }
     }
@@ -445,7 +445,7 @@ vector<Healer::HealingAction> Healer::HealerImpl::processReshapingCase(Node* nod
     vector<HealingAction> actions;
     actions.push_back(make_unique<MoveNode>(node, *other_loc));
 
-    for (auto port : m_port_groups.at(node)) {
+    for (const auto &port : m_port_groups.at(node)) {
         if (port->center() == *other_loc) continue;
         actions.push_back(make_unique<MovePort>(port.get(), *other_loc));
     }
@@ -465,7 +465,7 @@ vector<Healer::HealingAction> Healer::HealerImpl::processGenericCase(Node* node,
         actions.push_back(make_unique<MoveNode>(node, node_loc));
     }
 
-    for (auto port : m_port_groups.at(node)) {
+    for (const auto &port : m_port_groups.at(node)) {
         if (port->center() == node_loc) continue;
 
         actions.push_back(make_unique<ReplaceNode>(port.get()));

@@ -114,15 +114,15 @@ QString CapQ::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::
     QString double_pi = "8*atan(1)";
     QString mode = getProperty("Mode")->Value;
     if (mode == "Constant") {
-        res_eq = QStringLiteral("%1*(%2)*hertz/(%3)").arg(double_pi).arg(C).arg(Q);
+        res_eq = QStringLiteral("%1*(%2)*hertz/(%3)").arg(double_pi, C, Q);
     } else if (mode == "Linear") {
-        res_eq = QStringLiteral("%1*(%2)*(%3)/(%4)").arg(double_pi).arg(C).arg(f0).arg(Q);
+        res_eq = QStringLiteral("%1*(%2)*(%3)/(%4)").arg(double_pi, C, f0, Q);
     } else if (mode == "SquareRoot") {
-        res_eq = QStringLiteral("%1*(%2)*sqrt(hertz*(%3))/(%4)").arg(double_pi).arg(C).arg(f0).arg(Q);
+        res_eq = QStringLiteral("%1*(%2)*sqrt(hertz*(%3))/(%4)").arg(double_pi, C, f0, Q);
     }
 
-    s = QStringLiteral("%1 %2 %3 C='%4'\n").arg(Cname).arg(pin1).arg(pin2).arg(C);
-    s += QStringLiteral("%1 %2 %3 R='1/((%4)+1e-8)'\n").arg(Rname).arg(pin1).arg(pin2).arg(res_eq);
+    s = QStringLiteral("%1 %2 %3 C='%4'\n").arg(Cname, pin1, pin2, C);
+    s += QStringLiteral("%1 %2 %3 R='1/((%4)+1e-8)'\n").arg(Rname, pin1, pin2, res_eq);
 
     return s;
 }

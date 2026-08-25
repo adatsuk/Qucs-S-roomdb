@@ -101,7 +101,7 @@ QString vTRRANDOM::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecom
     Q_UNUSED(dialect);
 
     QString s = spicecompat::check_refdes(Name,SpiceModel);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -113,6 +113,6 @@ QString vTRRANDOM::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecom
     QString Param1 = spicecompat::normalize_value(Props.at(3)->Value);
     QString Param2 = spicecompat::normalize_value(Props.at(4)->Value);
 
-    s += QStringLiteral(" DC 0 AC 0 TRRANDOM(%1 %2 %3 %4 %5 ) \n").arg(Type).arg(Ts).arg(Td).arg(Param1).arg(Param2);
+    s += QStringLiteral(" DC 0 AC 0 TRRANDOM(%1 %2 %3 %4 %5 ) \n").arg(Type, Ts, Td, Param1, Param2);
     return s;
 }

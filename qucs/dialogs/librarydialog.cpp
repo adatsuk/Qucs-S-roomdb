@@ -507,7 +507,7 @@ void LibraryDialog::slotSave()
         if (!kern->checkSchematic(err_lst)) {
              ErrText->insertPlainText(QStringLiteral("Component %1 contains SPICE-incompatible components.\n"
                                 "Check these components: %2 \n")
-                    .arg(Doc->getDocName()).arg(err_lst.join("; ")));
+                    .arg(Doc->getDocName(), err_lst.join("; ")));
         }
         kern->createSubNetlist(ts,true);
         intoStream(Stream, tmp, "Spice");

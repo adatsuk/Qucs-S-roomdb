@@ -48,7 +48,7 @@ EqnDefined::EqnDefined()
   Props.append(new Property("Q1", "0", false,
 		QObject::tr("charge equation") + " 1"));
 
-  createSymbol();
+  EqnDefined::createSymbol();
 }
 
 // -------------------------------------------------------
@@ -84,7 +84,7 @@ QString EqnDefined::netlist()
   QString e = "\n";
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " "+p1->Connection->Name;   // node names
 
   // output all properties
@@ -130,11 +130,10 @@ QString EqnDefined::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
             QString plus = Ports.at(2*i)->Connection->Name;
             QString minus = Ports.at(2*i+1)->Connection->Name;
             if (used_currents.contains(i)) { // if current is used add sensing source V=0
-                s += QStringLiteral("V_%1sens_%2 %3 %4 DC 0\n").arg(Name).arg(i).arg(plus).arg(plus+"_sens");
+                s += QStringLiteral("V_%1sens_%2 %3 %4 DC 0\n").arg(Name).arg(i).arg(plus, plus+"_sens");
                 plus = plus+"_sens";
             }
-            s += QStringLiteral("B%1I%2 %3 %4 I=%5\n").arg(Name).arg(i).arg(plus)
-                    .arg(minus).arg(Itokens.join(""));
+            s += QStringLiteral("B%1I%2 %3 %4 I=%5\n").arg(Name).arg(i).arg(plus, minus, Itokens.join(""));
 
             QString Qeqn = Props.at(2*(i+1)+1)->Value; // parse charge equation only for Xyce
             if (Qeqn!="0") {
@@ -145,9 +144,9 @@ QString EqnDefined::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
                 spicecompat::convert_functions(Qtokens, dialect == spicecompat::SPICEXyce);
                 subsVoltages(Qtokens,Nbranch);
                 subsCurrents(Qtokens);
-                s += QStringLiteral("G%1Q%2 %3 %4 n%1Q%2 %4 1.0\n").arg(Name).arg(i).arg(plus).arg(minus);
+                s += QStringLiteral("G%1Q%2 %3 %4 n%1Q%2 %4 1.0\n").arg(Name).arg(i).arg(plus, minus);
                 s += QStringLiteral("L%1Q%2 n%1Q%2 %3 1.0\n").arg(Name).arg(i).arg(minus);
-                s += QStringLiteral("B%1Q%2 n%1Q%2 %3 I=-(%4)\n").arg(Name).arg(i).arg(minus).arg(Qtokens.join(""));
+                s += QStringLiteral("B%1Q%2 n%1Q%2 %3 I=-(%4)\n").arg(Name).arg(i).arg(minus, Qtokens.join(""));
             }
         }
     } else {
@@ -173,8 +172,8 @@ QString EqnDefined::va_code()
                 spicecompat::splitEqn(Ieqn,Itokens);
                 vacompat::convert_functions(Itokens);
                 subsVoltages(Itokens,Nbranch);
-                if (plus=="gnd") s += QStringLiteral("%1 <+ -(%2);\n").arg(Ipm).arg(Itokens.join(""));
-                else s += QStringLiteral("%1 <+ %2;\n").arg(Ipm).arg(Itokens.join(""));
+                if (plus=="gnd") s += QStringLiteral("%1 <+ -(%2);\n").arg(Ipm, Itokens.join(""));
+                else s += QStringLiteral("%1 <+ %2;\n").arg(Ipm, Itokens.join(""));
             }
             QString Qeqn = Props.at(2*(i+1)+1)->Value; // parse charge equation only for Xyce
             if (Qeqn!="0") {
@@ -182,8 +181,8 @@ QString EqnDefined::va_code()
                 spicecompat::splitEqn(Qeqn,Qtokens);
                 vacompat::convert_functions(Qtokens);
                 subsVoltages(Qtokens,Nbranch);
-                if (plus=="gnd") s += QStringLiteral("%1 <+ -ddt( %2 );\n").arg(Ipm).arg(Qtokens.join(""));
-                else s += QStringLiteral("%1 <+ ddt( %2 );\n").arg(Ipm).arg(Qtokens.join(""));
+                if (plus=="gnd") s += QStringLiteral("%1 <+ -ddt( %2 );\n").arg(Ipm, Qtokens.join(""));
+                else s += QStringLiteral("%1 <+ ddt( %2 );\n").arg(Ipm, Qtokens.join(""));
             }
         }
     } else {

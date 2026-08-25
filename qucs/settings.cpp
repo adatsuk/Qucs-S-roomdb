@@ -77,12 +77,26 @@ void settingsManager::initDefaults()
     m_Defaults["Nprocs"] = 4;
     m_Defaults["SpiceOpusExecutable"] = "spiceopus";
     m_Defaults["SimParameters"] = "";
-    m_Defaults["GraphAntiAliasing"] = false;
-    m_Defaults["TextAntiAliasing"] = false;
-    m_Defaults["fullTraceName"] = false;
-    m_Defaults["NgspiceCompatMode"] = spicecompat::NgspDefault;
-    m_Defaults["AllowFlexibleWires"] = false;
+
+    // Qucs-S Settings Dialog - Checkboxes
+    // 1) Settings tab
+    m_Defaults["NodeWiring"] = false;                // Start wiring when clicking open node
+    m_Defaults["LoadFutureVersion"] = false;         // Try to load also documents created with newer versions of Qucs
+    m_Defaults["fullTraceName"] = false;             // Show prefixes for trace names on diagrams like "ngspice"
+    m_Defaults["alwaysPrefixDataset"] = false;       // Always use the prefix for dataset, i.e. \"tr1.v(out)\" rather than \"v(out)\"
+    m_Defaults["AllowFlexibleWires"] = false;        // Allow flexible wires
+    m_Defaults["EnableSchematicValidation"] = false; // Check the schematic for common issues before running the simulation
+    m_Defaults["ValidateOnSave"] = false;            // Check the schematic for common issues after saving
+
+    // 2) Appearance tab
+    m_Defaults["GraphAntiAliasing"] = false;        // Use anti-aliasing for graphs for a smoother appearance
+    m_Defaults["TextAntiAliasing"] = true;          // Use anti-aliasing for text for a smoother appearance
+
+    // Not used - Keeping for now
     m_Defaults["AllowLayingWiresAnew"] = false;
+
+    // Simulation settings dialog
+    m_Defaults["NgspiceCompatMode"] = spicecompat::NgspDefault;
 }
 
 void settingsManager::initAliases()

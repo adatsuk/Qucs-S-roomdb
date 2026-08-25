@@ -116,7 +116,7 @@ public:
 
   void setName(const QString&);
   void setChanged(bool, bool fillStack=false, char Op='*');
-  void print(QPrinter*, QPainter*, bool printAll, bool fitToPage, QMargins margins={});
+  void print(QPrinter*, QPainter*, bool printAll, bool fitToPage, QMargins margins={}) override;
 
   void paintSchToViewpainter(QPainter* painter, bool printAll);
 
@@ -565,6 +565,7 @@ private:
   void simpleInsertComponent(Component*);
   bool loadComponents(QTextStream*, std::list<Component*> *List=0);
   void simpleInsertWire(Wire*);
+  void reconcileNetStyle(Node* a, Node* b);
   bool loadWires(QTextStream*, std::list<Element*> *List=0);
   bool loadDiagrams(QTextStream*, std::list<Diagram*>*);
   bool loadPaintings(QTextStream*, std::list<Painting*>*);

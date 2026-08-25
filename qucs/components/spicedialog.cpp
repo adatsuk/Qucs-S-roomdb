@@ -525,7 +525,7 @@ bool SpiceDialog::loadSpiceNetList(const QString& s)
   {
     PortsList->clear();
     QStringList ports = pp->Value.split(',');
-    for (const QString& port : ports) {
+    for (const QString& port : std::as_const(ports)) {
       PortsList->addItem(port);
     }
   }

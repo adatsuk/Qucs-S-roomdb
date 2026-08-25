@@ -516,6 +516,7 @@ void Module::registerModules (void) {
   REGISTER_FILE_1 (SpiceLibComp);
   REGISTER_FILE_1 (SpiceFile);
   REGISTER_FILE_3 (SParamFile, info1, info2, info);
+  REGISTER_FILE_1 (SPDeEmbed);
   REGISTER_FILE_1 (SpiceGeneric);
   REGISTER_FILE_1 (XspiceGeneric);
 

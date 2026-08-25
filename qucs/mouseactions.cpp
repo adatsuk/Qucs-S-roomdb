@@ -27,7 +27,7 @@
 #include "diagrams/markerdialog.h"
 #include "diagrams/tabdiagram.h"
 #include "diagrams/timingdiagram.h"
-#include "dialogs/labeldialog.h"
+#include "dialogs/netpropertiesdialog.h"
 #include "dialogs/textboxdialog.h"
 #include "dialogs/tuner.h"
 #include "extsimkernels/customsimdialog.h"
@@ -52,7 +52,6 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QTextStream>
-#include <numeric>
 
 #include <climits>
 #include <cstdlib>
@@ -130,21 +129,39 @@ bool MouseActions::pasteElements(Schematic *Doc)
 // -----------------------------------------------------------
 void MouseActions::editLabel(Schematic *Doc, WireLabel *pl)
 {
-    LabelDialog *Dia = new LabelDialog(pl, Doc);
-    int Result = Dia->exec();
-    if (Result == 0)
-        return;
+    Conductor *owner = pl->owner();
 
-    QString Name = Dia->NodeName->text();
-    QString Value = Dia->InitValue->text();
+    QColor initialColor;
+    int initialWidth = 2;
+    if (owner->Type == isNode){
+      initialColor = ((Node*)owner)->color();  initialWidth = ((Node*)owner)->lineWidth();
+    } else if (owner->Type == isWire) {
+      initialColor = ((Wire*)owner)->color();  initialWidth = ((Wire*)owner)->lineWidth();
+    }
+
+    NetPropertiesDialog *Dia = new NetPropertiesDialog(initialColor, initialWidth, pl->Name, pl->initValue, Doc);
+    if (Dia->exec() != QDialog::Accepted) {
+      delete Dia;
+      return;
+    }
+
+    QString Name = Dia->resultName();
+    QString Value = Dia->resultInitValue();
+    QColor color = Dia->resultColor();
+    int lineWidth = Dia->resultLineWidth();
     delete Dia;
+
+    // Style always propagates across the whole net.
+    if (owner->Type == isNode) {
+      ((Node*)owner)->propagateStyle(color, lineWidth, *Doc->a_Nodes, *Doc->a_Wires);
+    } else if (owner->Type == isWire) {
+      ((Wire*)owner)->propagateStyle(color, lineWidth, *Doc->a_Nodes, *Doc->a_Wires);
+    }
+
 
     if (Name.isEmpty() && Value.isEmpty()) { // if nothing entered, delete label
         pl->owner()->dropLabel();               // delete name of wire
     } else {
-        if (Result == 1)
-            return; // nothing changed
-
         int old_x2 = pl->x2;
         pl->setName(Name); // set new name
         pl->initValue = Value;
@@ -663,9 +680,20 @@ void MouseActions::rightPressMenu(Schematic *Doc, QMouseEvent *Event, float fX, 
     while (true) {
         if (focusElement) {
             focusElement->isSelected = true;
-            QAction *editProp = new QAction(QObject::tr("Edit Properties"), QucsMain);
-            QObject::connect(editProp, SIGNAL(triggered(bool)), QucsMain, SLOT(slotEditElement()));
-            ComponentMenu->addAction(editProp);
+
+            if (focusElement->Type == isNode || focusElement->Type == isWire) {
+              // If this is a node or a wire, then open the properties
+              QAction *setProps = new QAction(QObject::tr("Set Net Properties..."), QucsMain);              Element *elem = focusElement;
+              QObject::connect(setProps, &QAction::triggered, [this, Doc, elem]() {
+                setNetProperties(Doc, elem);
+              });
+              ComponentMenu->addAction(setProps);
+            } else {
+              // Same behavior as before
+              QAction *editProp = new QAction(QObject::tr("Edit Properties"), QucsMain);
+              QObject::connect(editProp, SIGNAL(triggered(bool)), QucsMain, SLOT(slotEditElement()));
+              ComponentMenu->addAction(editProp);
+            }
 
             if ((focusElement->Type & isComponent) == 0)
                 break;
@@ -790,13 +818,20 @@ void MouseActions::MPressLabel(Schematic *Doc, QMouseEvent *, float fX, float fY
             return;
     }
 
-    QString Name, Value;
+    QColor initialColor;
+    int initialWidth = 2;
     Element *pe = nullptr;
     // is wire line already labeled ?
-    if (pw)
-        pe = Doc->getWireLabel(pw->Port1);
-    else
-        pe = Doc->getWireLabel(pn);
+    if (pw) {
+      pe = Doc->getWireLabel(pw->Port1);
+      initialColor = pw->color();
+      initialWidth = pw->lineWidth();
+    } else {
+      pe = Doc->getWireLabel(pn);
+      initialColor = pn->color();
+      initialWidth = pn->lineWidth();
+    }
+
     if (pe) {
         if (pe->Type & isComponent) {
             QMessageBox::information(0,
@@ -807,13 +842,27 @@ void MouseActions::MPressLabel(Schematic *Doc, QMouseEvent *, float fX, float fY
         pl = ((Conductor *) pe)->label();
     }
 
-    LabelDialog *Dia = new LabelDialog(pl, Doc);
-    if (Dia->exec() == 0)
-        return;
+    NetPropertiesDialog *Dia = new NetPropertiesDialog(initialColor, initialWidth,
+                                                       pl ? pl->Name : QString(),
+                                                       pl ? pl->initValue : QString(),
+                                                       Doc);
+    if (Dia->exec() != QDialog::Accepted) {
+      delete Dia;
+      return;
+    }
 
-    Name = Dia->NodeName->text();
-    Value = Dia->InitValue->text();
+    QString Name = Dia->resultName();
+    QString Value = Dia->resultInitValue();
+    QColor color = Dia->resultColor();
+    int lineWidth = Dia->resultLineWidth();
     delete Dia;
+
+    // Propagate style
+    if (pw) {
+      pw->propagateStyle(color, lineWidth, *Doc->a_Nodes, *Doc->a_Wires);
+    } else {
+      pn->propagateStyle(color, lineWidth, *Doc->a_Nodes, *Doc->a_Wires);
+    }
 
     if (Name.isEmpty() && Value.isEmpty()) { // if nothing entered, delete name
         if (pe) {
@@ -1527,8 +1576,8 @@ void MouseActions::MReleaseResizeDiagram(Schematic *Doc, QMouseEvent *Event)
 
     Diagram *pd = (Diagram *) focusElement;
     pd->updateGraphData();
-    for (Graph *pg : pd->Graphs)
-        for (Marker *pm : pg->Markers) {
+    for (Graph *pg : std::as_const(pd->Graphs))
+        for (Marker *pm : std::as_const(pg->Markers)) {
             pm->x1 += MAx3; // correct changes due to move of diagram corner
             pm->y1 += MAy3;
         }
@@ -1788,7 +1837,9 @@ void MouseActions::editElement(Schematic *Doc, QMouseEvent *Event)
             if (od->exec() != 1)
                 break; // dialog is WDestructiveClose
         } else {
-            ComponentDialog *cd = new ComponentDialog(c, Doc);
+            // Create the properties dialog. If the component doesn't have a custom implementation (X:createDialog() member)
+            // the control flow goes to Component::createDialog()
+            ComponentDialog *cd = c->createDialog(Doc);
             if (cd->exec() != 1)
                 break; // dialog is WDestructiveClose
 
@@ -2052,4 +2103,58 @@ QPoint MouseActions::updateMouseMove(Schematic* Doc, QMouseEvent* Event, bool on
     return delta;
 }
 
-// vim:ts=8:sw=2:noet
+
+void MouseActions::setNetProperties(Schematic *Doc, Element *elem)
+{
+  QColor initialColor;
+  int initialWidth = 2;
+  if (elem->Type == isNode) { initialColor = ((Node*)elem)->color(); initialWidth = ((Node*)elem)->lineWidth(); }
+  else if (elem->Type == isWire) { initialColor = ((Wire*)elem)->color(); initialWidth = ((Wire*)elem)->lineWidth(); }
+  else return;
+
+  // Net-wide label lookup. The label may live on any node/wire in this net, not necessarily on the element that was clicked.
+  Element *pe = (elem->Type == isWire) ? Doc->getWireLabel(((Wire*)elem)->Port1)
+                                       : Doc->getWireLabel((Node*)elem);
+
+  QString initialName, initialValue;
+  if (pe) {
+    WireLabel* lbl = ((Conductor*)pe)->label();
+    initialName = lbl->Name;
+    initialValue = lbl->initValue;
+  }
+
+  NetPropertiesDialog dlg(initialColor, initialWidth, initialName, initialValue, Doc);
+  if (dlg.exec() != QDialog::Accepted) return;
+
+  if (elem->Type == isNode) {
+    ((Node*)elem)->propagateStyle(dlg.resultColor(), dlg.resultLineWidth(), *Doc->a_Nodes, *Doc->a_Wires);
+  } else {
+    ((Wire*)elem)->propagateStyle(dlg.resultColor(), dlg.resultLineWidth(), *Doc->a_Nodes, *Doc->a_Wires);
+  }
+
+  QString name = dlg.resultName(), value = dlg.resultInitValue();
+  if (name.isEmpty() && value.isEmpty()) {
+    if (pe) ((Conductor*)pe)->dropLabel();
+  } else if (pe) {
+    // Rename in place, wherever in the net the label actually lives.
+    ((Conductor*)pe)->label()->setName(name);
+    ((Conductor*)pe)->label()->initValue = value;
+  } else {
+    // Nothing labeled anywhere on this net yet — create on the clicked element.
+    if (elem->Type == isNode) {
+      Node* n = (Node*)elem;
+      int xl = n->x() + 30, yl = n->y() - 30;
+      Doc->setOnGrid(xl, yl);
+      n->setName(name, value, xl, yl);
+    } else {
+      Wire* w = (Wire*)elem;
+      QPoint mid = (w->P1() + w->P2()) / 2;
+      int xl = mid.x() + 30, yl = mid.y() - 30;
+      Doc->setOnGrid(xl, yl);
+      w->setName(name, value, mid.x(), mid.y(), xl, yl);
+    }
+  }
+
+  Doc->setChanged(true, true);
+  Doc->viewport()->update();
+}

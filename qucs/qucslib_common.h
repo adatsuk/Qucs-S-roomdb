@@ -407,10 +407,10 @@ inline int parseSPICEComponentLibrary (QString libPath, ComponentLibrary &librar
             comp.name = lin.section(" ",1,1,QString::SectionSkipEmpty);
             // Form fake component definition
             comp.modelString = QStringLiteral("<SpLib X1 1 280 260 -29 -164 0 0 \"%1\" 0 \"%2\" 1 \"auto\" 1 \"%3\" 1>")
-                    .arg(filename).arg(comp.name).arg(pars);
+                    .arg(filename, comp.name, pars);
             comp.definition += QStringLiteral("<Component %1>\n").arg(comp.name);
             comp.definition += "<Description>\n";
-            comp.definition += QStringLiteral("%1 device from %2 library").arg(comp.name).arg(library.name);
+            comp.definition += QStringLiteral("%1 device from %2 library").arg(comp.name, library.name);
             comp.definition += "</Description>\n";
             comp.definition += "<Spice>\n";
             comp.definition += lin + "\n.ends\n";
@@ -454,8 +454,8 @@ inline int parseSPICEComponentLibrary (QString libPath, ComponentLibrary &librar
             QString visible = "1";
             for (const auto &p: mod_lines) {
                 if (lin_cnt>3) comp.modelString += QStringLiteral(" \"Line_%1=%2\" %3")
-                        .arg(lin_cnt+1).arg(p).arg(visible);
-                else comp.modelString += QStringLiteral(" \"%1\" %2").arg(p).arg(visible);
+                        .arg(lin_cnt+1).arg(p, visible);
+                else comp.modelString += QStringLiteral(" \"%1\" %2").arg(p, visible);
                 lin_cnt++;
                 visible = "0";
             }
@@ -466,7 +466,7 @@ inline int parseSPICEComponentLibrary (QString libPath, ComponentLibrary &librar
             comp.definition += QStringLiteral("%1 model from %2 library\n"
                                        "This component is model-only (.MODEL).\n"
                                        "No subcircuit definition!\n"
-                                       "Use appropriate device to attach this model.").arg(comp.name).arg(library.name);
+                                       "Use appropriate device to attach this model.").arg(comp.name, library.name);
             comp.definition += "</Description>\n";
             comp.definition += "<Spice>\n";
             comp.definition += mod_lines.join("\n");

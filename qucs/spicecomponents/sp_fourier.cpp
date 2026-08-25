@@ -61,9 +61,9 @@ QString SpiceFourier::spice_netlist(spicecompat::SpiceDialect dialect /* = spice
     QString out = "spice4qucs." + Name.toLower() + ".four";
     if (dialect != spicecompat::SPICEXyce) {
         s = QStringLiteral("set nfreqs=%1\n").arg(Props.at(1)->Value);
-        s += QStringLiteral("fourier %1 %2 > %3\n").arg(f0).arg(Props.at(3)->Value).arg(out);
+        s += QStringLiteral("fourier %1 %2 > %3\n").arg(f0, Props.at(3)->Value, out);
     } else {
-        s = QStringLiteral(".FOUR %1 %2\n").arg(f0).arg(Props.at(3)->Value);
+        s = QStringLiteral(".FOUR %1 %2\n").arg(f0, Props.at(3)->Value);
     }
 
     return s;

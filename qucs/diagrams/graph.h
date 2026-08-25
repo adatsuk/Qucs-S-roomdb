@@ -159,7 +159,10 @@ public:
   QString Var;
   QColor  Color;
   int     Thick;
+
   graphstyle_t Style;
+  bool    GradientEnabled;     // Enable color gradient traces
+
   QList<Marker *> Markers;
 
   // for tabular diagram
@@ -169,6 +172,11 @@ public:
 private: // painting
   void drawStarSymbols(QPainter* painter) const;
   void drawLines(QPainter* painter) const;
+
+  /// @brief Draw color gradient traces
+  /// @details The color of the trace varies according to the independent variable.
+  /// The pen changes at each line connecting two points.
+  void drawGradientLines(QPainter* painter) const;
   void drawCircleSymbols(QPainter* painter) const;
   void drawArrowSymbols(QPainter* painter) const;
 public: // marker related

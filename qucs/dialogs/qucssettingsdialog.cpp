@@ -158,13 +158,26 @@ QucsSettingsDialog::QucsSettingsDialog(QucsApp *parent)
     allowFlexibleWires = new QCheckBox(appSettingsTab);
     appSettingsGrid->addWidget(allowFlexibleWires, 8, 1);
 
+    appSettingsGrid->addWidget(new QLabel(tr("Validate schematic before simulating:"), appSettingsTab), 9, 0);
+    enableSchematicValidation = new QCheckBox(appSettingsTab);
+    enableSchematicValidation->setToolTip(tr(
+        "Check the schematic for common issues before running the simulation."));
+    appSettingsGrid->addWidget(enableSchematicValidation, 9, 1);
+
+    appSettingsGrid->addWidget(new QLabel(tr("Validate schematic after saving:"), appSettingsTab), 10, 0);
+    validateOnSave = new QCheckBox(appSettingsTab);
+    validateOnSave->setToolTip(tr(
+        "Check the schematic for common issues after saving."));
+    appSettingsGrid->addWidget(validateOnSave, 10, 1);
+
+
     t->addTab(appSettingsTab, tr("Settings"));
 
-    appSettingsGrid->addWidget(new QLabel(tr("Set custom shortcut:"), appSettingsTab), 9, 0);
+    appSettingsGrid->addWidget(new QLabel(tr("Set custom shortcut:"), appSettingsTab), 11, 0);
     ShortcutButton = new QPushButton(appSettingsTab);
     connect(ShortcutButton, SIGNAL(clicked()),
         parent, SLOT(slotShortcutDialog()));
-    appSettingsGrid->addWidget(ShortcutButton, 9, 1);
+    appSettingsGrid->addWidget(ShortcutButton, 11, 1);
 
     // ...........................................................
     // The appearance settings tab
@@ -544,6 +557,8 @@ QucsSettingsDialog::QucsSettingsDialog(QucsApp *parent)
     editorEdit->setText(QucsSettings.Editor);
     checkWiring->setChecked(QucsSettings.NodeWiring);
     allowFlexibleWires->setChecked(_settings::Get().item<bool>("AllowFlexibleWires"));
+    enableSchematicValidation->setChecked(_settings::Get().item<bool>("EnableSchematicValidation"));
+    validateOnSave->setChecked(_settings::Get().item<bool>("ValidateOnSave"));
 
     ShortcutButton->setText("Custom Shortcut");
 
@@ -770,6 +785,8 @@ void QucsSettingsDialog::slotApply()
     }
 
     _settings::Get().setItem("AllowFlexibleWires", allowFlexibleWires->isChecked());
+    _settings::Get().setItem("EnableSchematicValidation", enableSchematicValidation->isChecked());
+    _settings::Get().setItem("ValidateOnSave", validateOnSave->isChecked());
 
     QucsSettings.FileTypes.clear();
     for (int row=0; row < fileTypesTableWidget->rowCount(); row++)
@@ -971,12 +988,45 @@ void QucsSettingsDialog::slotDefaultValues()
 
     undoNumEdit->setText("20");
     editorEdit->setText(QucsSettings.BinDir + "qucs");
-    checkWiring->setChecked(false);
-    allowFlexibleWires->setChecked(_settings::Get().itemDefault<bool>("AllowFlexibleWires"));
-    checkLoadFromFutureVersions->setChecked(false);
-    checkAntiAliasing->setChecked(false);
-    checkTextAntiAliasing->setChecked(true);
-    checkFullTraceNames->setChecked(false);
+
+    // Checkboxes
+    // 1) Settings tab
+    // Start wiring when clicking open node
+    checkWiring->setChecked(
+        _settings::Get().itemDefault<bool>("NodeWiring"));
+
+    // Try to load also documents created with newer versions of Qucs
+    checkLoadFromFutureVersions->setChecked(
+        _settings::Get().itemDefault<bool>("LoadFutureVersion"));
+
+    // Show prefixes for trace names on diagrams like "ngspice"
+    checkFullTraceNames->setChecked(
+        _settings::Get().itemDefault<bool>("fullTraceName"));
+
+    // Always use the prefix for dataset, i.e. \"tr1.v(out)\" rather than \"v(out)\"
+    alwaysPrefixDataset->setChecked(
+        _settings::Get().itemDefault<bool>("alwaysPrefixDataset"));  // was missing entirely
+
+    // Allow flexible wires
+    allowFlexibleWires->setChecked(
+        _settings::Get().itemDefault<bool>("AllowFlexibleWires"));
+
+    // Check the schematic for common issues before running the simulation
+    enableSchematicValidation->setChecked(
+        _settings::Get().itemDefault<bool>("EnableSchematicValidation"));
+
+    // Check the schematic for common issues after saving
+    validateOnSave->setChecked(
+        _settings::Get().itemDefault<bool>("ValidateOnSave"));
+
+    // 2) Appearance tab
+    // Use anti-aliasing for graphs for a smoother appearance
+    checkAntiAliasing->setChecked(
+        _settings::Get().itemDefault<bool>("GraphAntiAliasing"));
+
+    // Use anti-aliasing for text for a smoother appearance
+    checkTextAntiAliasing->setChecked(
+        _settings::Get().itemDefault<bool>("TextAntiAliasing"));
 }
 
 // -----------------------------------------------------------
@@ -1246,6 +1296,7 @@ void QucsSettingsDialog::slotAddPathWithSubFolders()
   layout->addWidget(pathList);
 
   // Keep "Select all" checkbox in sync with individual items
+  // Replace QCheckBox::stateChanged by QCheckBox::checkStateChanged when moving macOS build to Qt >= 6.7
   connect(selectAllCheck, &QCheckBox::stateChanged, [pathList](int state) {
     if (state == Qt::PartiallyChecked){
       return;

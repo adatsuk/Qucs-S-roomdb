@@ -18,12 +18,13 @@
 
 #include "component.h"
 #include "wire.h"
+#include <unordered_set> // Needed to propagate the color property to wires and other nodes
 
 #include <QPainter>
 
 Node::Node(int x, int y)
   : DType("")
-  , State(0)
+      , State(0), m_color(Qt::darkBlue), m_lineWidth(2)
 {
   Type  = isNode;
 
@@ -40,19 +41,19 @@ void Node::paint(QPainter* painter) const {
   }
   else if (conn_count() == 1) {
       if (hasLabel()) {
-        painter->fillRect(cx-2, cy-2, 4, 4, Qt::darkBlue); // open but labeled
+        painter->fillRect(cx-2, cy-2, 4, 4, m_color); // open but labeled
       } else {
-        painter->setPen(QPen(Qt::red,1));  // node is open
+        painter->setPen(QPen(Qt::red, m_lineWidth));  // node is open
         painter->drawEllipse(cx-4, cy-4, 8, 8);
       }
   }
   else if (conn_count() > 2) {
-      painter->setBrush(Qt::darkBlue);  // more than 2 connections
-      painter->setPen(QPen(Qt::darkBlue,1));
+      painter->setBrush(m_color);  // more than 2 connections
+      painter->setPen(QPen(m_color, m_lineWidth));
       painter->drawEllipse(cx-3, cy-3, 6, 6);
   }
   else if (m_wires.size() != 2) {
-      painter->fillRect(cx-2, cy-2, 4, 4, Qt::darkBlue);
+      painter->fillRect(cx-2, cy-2, 4, 4, m_color);
   }
 
   painter->restore();
@@ -97,7 +98,7 @@ bool Node::moveCenter(int dx, int dy) noexcept
     donor->m_wires.clear();
 
     for (auto* c : donor->components()) {
-        for (auto* p : c->Ports) {
+        for (auto* p : std::as_const(c->Ports)) {
             if (p->Connection == donor) {
                 p->Connection = this;
             }
@@ -127,4 +128,113 @@ bool Node::isOverlapping(const Node* other) const {
   }
 
   return isOverlapping(other->x(), other->y());
+}
+
+
+void Node::propagateStyle(const QColor& c, int lineWidth,
+                          const std::list<Node*>& allNodes,
+                          const std::list<Wire*>& allWires)
+{
+  std::unordered_set<Node*> visitedNodes;
+  std::unordered_set<Wire*> visitedWires;
+  std::list<Node*> nodeQueue;
+  std::list<Wire*> wireQueue;
+
+  // Set the color and queue a node
+  auto visitNode = [&](Node* n) {
+    if (visitedNodes.insert(n).second) {
+      n->setColor(c);
+      n->setLineWidth(lineWidth);
+      nodeQueue.push_back(n);
+    }
+  };
+
+  // Set the color and queue a wire
+  auto visitWire = [&](Wire* w) {
+    if (visitedWires.insert(w).second) {
+      w->setColor(c);
+      w->setLineWidth(lineWidth);
+      wireQueue.push_back(w);
+    }
+  };
+
+  visitNode(this);
+
+  // Drain the nodes and wires queues. A visit to a node may find new nodes to queue. The same with wires.
+  while (!nodeQueue.empty() || !wireQueue.empty()) {
+    // Inspect nodes
+    while (!nodeQueue.empty()) {
+      Node* node = nodeQueue.front();
+      nodeQueue.pop_front();
+
+      // Propagate through every wire touching this node.
+      for (Wire* wire : node->wires()) {
+        visitWire(wire);
+      }
+
+      // Look for any other node sharing this node's net name.
+      if (node->hasLabel()) {
+        const QString key = node->label()->Name;
+
+        // Nodes
+        for (Node* candidate : allNodes) {
+          if (candidate != node && candidate->hasLabel() && candidate->label()->Name == key) {
+            visitNode(candidate);
+          }
+        }
+        for (Wire* candidate : allWires) {
+          if (candidate->hasLabel() && candidate->label()->Name == key) {
+            visitWire(candidate);
+          }
+        }
+      }
+    }
+
+    // Inspect wires
+    while (!wireQueue.empty()) {
+      Wire* wire = wireQueue.front();
+      wireQueue.pop_front();
+
+      // Propagate to the nodes at the ends
+      if (wire->Port1) {
+        visitNode(wire->Port1);
+      }
+      if (wire->Port2) {
+        visitNode(wire->Port2);
+      }
+
+      // Look for any other wire/node sharing this wire's net name.
+      if (wire->hasLabel()) {
+        const QString key = wire->label()->Name;
+
+        // Wires
+        for (Wire* candidate : allWires) {
+          if (candidate != wire && candidate->hasLabel() && candidate->label()->Name == key) {
+            visitWire(candidate);
+          }
+        }
+
+        // Nodes
+        for (Node* candidate : allNodes) {
+          if (candidate->hasLabel() && candidate->label()->Name == key) {
+            visitNode(candidate);
+          }
+        }
+      }
+    }
+  }
+}
+
+void Node::connect(Wire* wire)
+{
+  if (is_connected(wire)) return;
+  m_wires.emplace_front(wire);
+
+  if (wire->color() != Qt::darkBlue && m_color == Qt::darkBlue) {
+    m_color = wire->color();
+    m_lineWidth = wire->lineWidth();
+  } else if (m_color != Qt::darkBlue && wire->color() == Qt::darkBlue) {
+    wire->setColor(m_color);
+    wire->setLineWidth(m_lineWidth);
+  }
 }

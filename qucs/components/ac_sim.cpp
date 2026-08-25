@@ -99,7 +99,7 @@ QString AC_Sim::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
     }
     QString fstart = spicecompat::normalize_value(Props.at(1)->Value); // Start freq.
     QString fstop = spicecompat::normalize_value(Props.at(2)->Value); // Stop freq.
-    s += QStringLiteral("%1 %2 \n").arg(fstart).arg(fstop);
+    s += QStringLiteral("%1 %2 \n").arg(fstart, fstop);
     if (dialect != spicecompat::SPICEXyce) s.remove(0,1);
     return s.toLower();
 

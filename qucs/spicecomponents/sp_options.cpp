@@ -80,12 +80,12 @@ QString SpiceOptions::getExpression(spicecompat::SpiceDialect dialect /* = spice
     if (dialect == spicecompat::SPICEXyce) {
         s += QStringLiteral(".OPTIONS %1 ").arg(Props.at(0)->Value);
         for (int i=1;i<Props.count();i++) {
-            s += QStringLiteral(" %1 = %2 ").arg(Props.at(i)->Name).arg(Props.at(i)->Value);
+            s += QStringLiteral(" %1 = %2 ").arg(Props.at(i)->Name, Props.at(i)->Value);
         }
         s += "\n";
     } else {
         for (int i=1;i<Props.count();i++) {
-            s += QStringLiteral(".OPTION %1 = %2\n").arg(Props.at(i)->Name).arg(Props.at(i)->Value);
+            s += QStringLiteral(".OPTION %1 = %2\n").arg(Props.at(i)->Name, Props.at(i)->Value);
         }
     }
     return s;

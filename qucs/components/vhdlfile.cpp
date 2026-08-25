@@ -219,7 +219,7 @@ bool VHDL_File::createSubNetlist(QTextStream *stream)
   QString FileName = Props.front()->Value;
   if(FileName.isEmpty()) {
     ErrText += QObject::tr("ERROR: No file name in %1 component \"%2\".").
-      arg(Model).arg(Name);
+      arg(Model, Name);
     return false;
   }
 
@@ -230,7 +230,7 @@ bool VHDL_File::createSubNetlist(QTextStream *stream)
   QFile f(FileName);
   if(!f.open(QIODevice::ReadOnly)) {
     ErrText += QObject::tr("ERROR: Cannot open %1 file \"%2\".").
-      arg(Model).arg(FileName);
+      arg(Model, FileName);
     return false;
   }
 
@@ -373,7 +373,7 @@ QString VHDL_File_Info::parsePorts(QString s, int j)
       t = t.mid(k+1);
     t = t.simplified();
     k = s.indexOf(';',l+2);
-    k = (s.mid(l,k-l).count(',')) + 1;
+    k = (QStringView(s).mid(l,k-l).count(',')) + 1;
     while (k-->0) types = types + t + ",";
     i--;
     l = i;
@@ -452,7 +452,7 @@ QString VHDL_File_Info::parseGenerics(QString s, int j)
       t = t.mid(k+1);
     t = t.simplified();
     k = s.indexOf(';',l+2);
-    k = (s.mid(l,k-l).count(',')) + 1;
+    k = (QStringView(s).mid(l,k-l).count(',')) + 1;
     while (k-->0) {
       types = types + t + ",";
       defs = defs + d + ",";

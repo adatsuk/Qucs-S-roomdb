@@ -165,13 +165,12 @@ QString qucs::Rectangle::saveCpp()
 {
   QString b = filled ?
     QString (", QBrush (QColor (\"%1\"), %2)").
-    arg(brush.color().name()).arg(toBrushString(brush.style())) : "";
+    arg(brush.color().name(), toBrushString(brush.style())) : "";
   QString s =
     QString ("new Area (%1, %2, %3, %4, "
 	     "QPen (QColor (\"%5\"), %6, %7)%8)").
     arg(x1).arg(y1).arg(x2 - x1).arg(y2 - y1).
-    arg(pen.color().name()).arg(pen.width()).arg(toPenString(pen.style())).
-    arg(b);
+    arg(pen.color().name()).arg(pen.width()).arg(toPenString(pen.style()), b);
   s = "Rects.append (" + s + ");";
   return s;
 }
@@ -180,15 +179,14 @@ QString qucs::Rectangle::saveJSON()
 {
   QString b = filled ?
     QString ("\"colorfill\" : \"%1\", \"stylefill\" : \"%2\"").
-    arg(brush.color().name()).arg(toBrushString(brush.style())) : "";
+    arg(brush.color().name(), toBrushString(brush.style())) : "";
 
   QString s =
     QStringLiteral("{\"type\" : \"rectangle\", "
       "\"x\" : %1, \"y\" : %2, \"w\" : %3, \"h\" : %4, "
       "\"color\" : \"%5\", \"thick\" : %6, \"style\" : \"%7\", %8},").
       arg(x1).arg(y1).arg(x2 - x1).arg(y2 - y1).
-      arg(pen.color().name()).arg(pen.width()).arg(toPenString(pen.style())).
-      arg(b);
+      arg(pen.color().name()).arg(pen.width()).arg(toPenString(pen.style()), b);
   return s;
 }
 

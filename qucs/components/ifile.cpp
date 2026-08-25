@@ -96,7 +96,7 @@ QString iFile::netlist()
   QString s = Model+":"+Name;
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " "+p1->Connection->Name;   // node names
 
   // output file properties
@@ -117,7 +117,7 @@ QString iFile::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat:
     QString modname = "mod_" + Model + Name;
     QString p1 = spicecompat::normalize_node_name(Ports.at(0)->Connection->Name);
     QString p2 = spicecompat::normalize_node_name(Ports.at(1)->Connection->Name);
-    s += QStringLiteral(" %id([%1 %2]) %3\n").arg(p2).arg(p1).arg(modname);
+    s += QStringLiteral(" %id([%1 %2]) %3\n").arg(p2, p1, modname);
     QString file = getSubcircuitFile();
     QString sc = getProperty("G")->Value;
     QString step = "false";
@@ -125,7 +125,7 @@ QString iFile::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat:
     if (getProperty("Interpolator")->Value != "linear") step = "true";
     s += QStringLiteral(".MODEL %1 filesource (file=\"%2\" amplscale=[%3] amplstep=%4 "
                  "amploffset=[0] timeoffset=%5 timescale=1)\n")
-            .arg(modname).arg(file).arg(sc).arg(step).arg(delay);
+            .arg(modname, file, sc, step, delay);
 
     return s;
 }

@@ -128,7 +128,6 @@ void SpiceLibComp::removeUnusedPorts()
     while (ip.hasNext()) {
       pp = ip.next();
       if(!pp->avail) {
-          pp = ip.peekNext();
           ip.remove();
       }
     }
@@ -226,7 +225,7 @@ QString SpiceLibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spice
   QString pins = getProperty("PinAssign")->Value;
   QString sym = getProperty("SymPattern")->Value;
   if (sym == "auto" || pins.isEmpty()) {
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
       s += " " + spicecompat::normalize_node_name(p1->Connection->Name);
     }
   } else {
@@ -236,7 +235,7 @@ QString SpiceLibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spice
 
     // Extract port numbers and check for duplicates
     QList<int> uniquePortNumbers;
-    for (const QString &p : pin_nums) {
+    for (const QString &p : std::as_const(pin_nums)) {
       bool ok = false;
       int num = p.trimmed().toInt(&ok);
       if (!ok) {
@@ -264,7 +263,7 @@ QString SpiceLibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spice
     }
 
     // Normalize pin_nums to ranks (0-based)
-    for (const QString &p : pin_nums) {
+    for (const QString &p : std::as_const(pin_nums)) {
       bool ok = false;
       int num = p.trimmed().toInt(&ok);
       if (!ok) {
@@ -281,7 +280,7 @@ QString SpiceLibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spice
       s += " " + spicecompat::normalize_node_name(pp->Connection->Name);
     }
   }
-  s += QStringLiteral(" %1 %2\n").arg(Props.at(1)->Value).arg(Props.at(3)->Value);
+  s += QStringLiteral(" %1 %2\n").arg(Props.at(1)->Value, Props.at(3)->Value);
   return s;
 }
 

@@ -605,7 +605,7 @@ void createIcons() {
   Module::registerModules ();
   QStringList cats = Category::getCategories ();
 
-  for (const QString& category: cats) {
+  for (const QString& category: std::as_const(cats)) {
 
     QList<Module *> Comps;
     Comps = Category::getModules(category);
@@ -616,7 +616,7 @@ void createIcons() {
     char * File;
     QString Name;
 
-    for (Module *Mod: Comps) {
+    for (Module *Mod: std::as_const(Comps)) {
       if (Mod->info) {
 
         Element *e = (Mod->info) (Name, File, true);
@@ -739,7 +739,7 @@ void createDocData() {
   int nComps = 0;
 
   // table for quick reference, schematic and netlist entry
-  for (const QString& category: cats) {
+  for (const QString& category: std::as_const(cats)) {
 
     QList<Module *> Comps;
     Comps = Category::getModules(category);
@@ -759,7 +759,7 @@ void createDocData() {
 
     int num = 0; // component id inside category
 
-    for (Module *Mod: Comps) {
+    for (Module *Mod: std::as_const(Comps)) {
         num += 1;
 
         nComps += 1;
@@ -795,7 +795,7 @@ void createDocData() {
         QStringList compProps;
         compProps << "# Note: auto-generated file (changes will be lost on update)";
         compProps << QStringLiteral("# %1; %2; %3; %4").arg(  "Name", "Value", "Display", "Description");
-        for (Property *prop : c->Props) {
+        for (Property *prop : std::as_const(c->Props)) {
           compProps << QStringLiteral("%1; \"%2\"; %3; \"%4\"").arg(
                          prop->Name,
                          prop->Value,
@@ -830,7 +830,7 @@ void createListComponentEntry(){
   Module::registerModules ();
   QStringList cats = Category::getCategories ();
   // table for quick reference, schematic and netlist entry
-  for (QString category: cats) {
+  for (const QString &category: std::as_const(cats)) {
 
     QList<Module *> Comps;
     Comps = Category::getModules(category);
@@ -841,7 +841,7 @@ void createListComponentEntry(){
     char * File;
     QString Name;
 
-    for (Module *Mod: Comps) {
+    for (Module *Mod: std::as_const(Comps)) {
       Element *e = (Mod->info) (Name, File, true);
       Component *c = (Component* ) e;
 
@@ -850,7 +850,7 @@ void createListComponentEntry(){
 
       // add dummy ports/wires, avoid segfault
       int port = 0;
-      for (Port *p: c->Ports) {
+      for (Port *p: std::as_const(c->Ports)) {
         Node *n = new Node(0,0);
         n->Name="_net"+QString::number(port);
         p->Connection = n;
@@ -933,6 +933,7 @@ int main(int argc, char *argv[])
     QucsSettings.SpiceLibDir = QucsDir.canonicalPath() + "/share/" QUCS_NAME "/spicelibrary/";
     QucsSettings.OctaveDir = QucsDir.canonicalPath() + "/share/" QUCS_NAME "/octave/";
     QucsSettings.ExamplesDir = QucsDir.canonicalPath() + "/share/" QUCS_NAME "/examples/";
+    QucsSettings.SvgGalleryDir = QucsDir.canonicalPath() + "/share/" QUCS_NAME "/symbols/SVG";
     QucsSettings.DocDir = QucsDir.canonicalPath() + "/share/" QUCS_NAME "/docs/";
     QucsSettings.Editor = "qucs";
 
@@ -1037,7 +1038,7 @@ int main(int argc, char *argv[])
     setlocale (LC_NUMERIC, "C");
 
 #ifdef GIT
-    const QString applicationVersion(QString::fromUtf8("qucs s%1 (%2)").arg(PACKAGE_VERSION).arg(GIT));
+    const QString applicationVersion(QString::fromUtf8("qucs s%1 (%2)").arg(PACKAGE_VERSION, GIT));
 #else
     const QString applicationVersion(QString::fromUtf8("Qucs %1").arg(PACKAGE_VERSION));
 #endif

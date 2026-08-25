@@ -194,7 +194,7 @@ QString Param_Sweep::getCounterVar()
 
 QString Param_Sweep::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::SPICEDefault */)
 {
-    double start,stop,step,fac,points;
+    double start=0,stop=0,step=0,fac,points;
     QString unit;
     QString s;
 

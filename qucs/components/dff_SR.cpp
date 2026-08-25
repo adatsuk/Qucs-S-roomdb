@@ -194,6 +194,6 @@ QString dff_SR::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
 
     s += " " + tmp_model + "\n";
     s += QStringLiteral(".model %1 d_dff(clk_delay=%2 set_delay=%2 reset_delay=%2 rise_delay=%2 fall_delay=%2)\n")
-            .arg(tmp_model).arg(td);
+            .arg(tmp_model, td);
     return s;
 }

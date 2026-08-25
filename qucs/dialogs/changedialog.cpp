@@ -179,7 +179,7 @@ void ChangeDialog::slotButtReplace()
     if(matches(pc->Model)) {
       QRegularExpressionMatch match = Expr.match(pc->Name);
       if(match.hasMatch())
-        for(const auto& pp : pc->Props)
+        for(const auto& pp : std::as_const(pc->Props))
           if(pp->Name == PropNameEdit->currentText()) {
             pb = new QCheckBox(pc->Name);
             Dia_Box->addWidget(pb);
@@ -231,7 +231,7 @@ void ChangeDialog::slotButtReplace()
     for(Component* pc : *Doc->a_Components) {
       if(pb->text() != pc->Name)  continue;
 
-      for(auto pp : pc->Props) {
+      for(auto pp : std::as_const(pc->Props)) {
         if(pp->Name != PropNameEdit->currentText())  continue;
 
         int tx_Dist, ty_Dist, tmp;
@@ -247,11 +247,9 @@ void ChangeDialog::slotButtReplace()
         pc->textSize(dx, dy);   // correct text position
         if(tx_Dist != 0) {
           pc->tx += tx_Dist-dx;
-          tx_Dist = dx;
         }
         if(ty_Dist != 0) {
           pc->ty += ty_Dist-dy;
-          ty_Dist = dy;
         }
 
         // apply changes to schematic symbol

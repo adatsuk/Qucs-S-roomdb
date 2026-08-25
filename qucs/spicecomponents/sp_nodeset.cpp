@@ -75,8 +75,8 @@ QString SpiceNodeset::getExpression(spicecompat::SpiceDialect dialect /* = spice
 
     QString s;
     s.clear();
-    for (Property *pp : Props) {
-        s += QStringLiteral(".NODESET %1 = %2\n").arg(pp->Name).arg(pp->Value);
+    for (Property *pp : std::as_const(Props)) {
+        s += QStringLiteral(".NODESET %1 = %2\n").arg(pp->Name, pp->Value);
     }
     return s;
 }

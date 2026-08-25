@@ -65,6 +65,7 @@ systemcommand.cpp
 simulation.cpp
 vdmos.cpp
 property.cpp
+spdeembed.cpp
 )
 
 SET(COMPONENTS_HDRS
@@ -203,6 +204,7 @@ simulation.h
 source_ac.h
 sp_sim.h
 sparamfile.h
+spdeembed.h
 spicedialog.h
 spicefile.h
 subcircuit.h

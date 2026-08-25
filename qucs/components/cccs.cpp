@@ -98,11 +98,11 @@ QString CCCS::va_code()
 
     QString Vpm = vacompat::normalize_voltage(P1,P2);
     QString Ipm = vacompat::normalize_current(P1,P2,true);
-    s += QStringLiteral(" %1  <+  %2 * 1e3;\n").arg(Ipm).arg(Vpm);
+    s += QStringLiteral(" %1  <+  %2 * 1e3;\n").arg(Ipm, Vpm);
     QString Vpm2 = vacompat::normalize_voltage(P4,P3);
     QString Ipm2 = vacompat::normalize_current(P4,P3,true);
-    s += QStringLiteral("%1  <+   %2 * 1e-9;\n").arg(Ipm2).arg(Vpm2);
-    s += QStringLiteral("%1  <+   %2 * 1e3 * %3 ;\n").arg(Ipm2).arg(Vpm).arg(Gain);
+    s += QStringLiteral("%1  <+   %2 * 1e-9;\n").arg(Ipm2, Vpm2);
+    s += QStringLiteral("%1  <+   %2 * 1e3 * %3 ;\n").arg(Ipm2, Vpm, Gain);
 
     return s;
 }
@@ -113,12 +113,10 @@ QString CCCS::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::
     QString s = spicecompat::check_refdes(Name,SpiceModel); // spice CCCS consists two sources: output source
                         // and zero value controlling source
     QString val = spicecompat::normalize_value(Props.at(0)->Value);
-    s += QStringLiteral(" %1 %2 ").arg(Ports.at(1)->Connection->Name)
-            .arg(Ports.at(2)->Connection->Name); // output source nodes
+    s += QStringLiteral(" %1 %2 ").arg(Ports.at(1)->Connection->Name, Ports.at(2)->Connection->Name); // output source nodes
     s.replace(" gnd ", " 0 ");
-    s += QStringLiteral(" V%1 %2\n").arg(Name).arg(val);
-    s += QStringLiteral("V%1 %2 %3 DC 0\n").arg(Name).arg(Ports.at(0)->Connection->Name)
-            .arg(Ports.at(3)->Connection->Name);   // controlling 0V source
+    s += QStringLiteral(" V%1 %2\n").arg(Name, val);
+    s += QStringLiteral("V%1 %2 %3 DC 0\n").arg(Name, Ports.at(0)->Connection->Name, Ports.at(3)->Connection->Name);   // controlling 0V source
 
     return s;
 }

@@ -106,10 +106,10 @@ QString RLCG::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::
     QString G = spicecompat::normalize_value(getProperty("G")->Value);
     QString LEN = spicecompat::normalize_value(getProperty("Length")->Value);
     QString modname = "mod_" + Name;
-    s += QStringLiteral("O%1 %2 0 %3 0 %4\n").arg(Name).arg(in).arg(out).arg(modname);
+    s += QStringLiteral("O%1 %2 0 %3 0 %4\n").arg(Name, in, out, modname);
 
     s += QStringLiteral(".MODEL %1 LTRA(R=%2 C=%3 L=%4 G=%5 LEN=%6)\n")
-        .arg(modname).arg(R).arg(C).arg(L).arg(G).arg(LEN);
+        .arg(modname, R, C, L, G, LEN);
     return s;
 }
 

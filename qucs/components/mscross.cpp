@@ -47,7 +47,7 @@ MScross::MScross()
 	QObject::tr("show port numbers in symbol or not")+
 	" [showNumbers, noNumbers]"));
 
-  createSymbol();
+  MScross::createSymbol();
 }
 
 MScross::~MScross()

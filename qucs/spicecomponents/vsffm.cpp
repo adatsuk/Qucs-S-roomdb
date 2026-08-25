@@ -94,7 +94,7 @@ QString vSffm::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat:
     Q_UNUSED(dialect);
 
     QString s = spicecompat::check_refdes(Name,SpiceModel);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -106,6 +106,6 @@ QString vSffm::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat:
     QString Mdi = spicecompat::normalize_value(Props.at(3)->Value);
     QString Fs = spicecompat::normalize_value(Props.at(4)->Value);
 
-    s += QStringLiteral(" DC 0 SFFM(%1 %2 %3 %4 %5 ) AC 0\n").arg(Vo).arg(Va).arg(Fc).arg(Mdi).arg(Fs);
+    s += QStringLiteral(" DC 0 SFFM(%1 %2 %3 %4 %5 ) AC 0\n").arg(Vo, Va, Fc, Mdi, Fs);
     return s;
 }

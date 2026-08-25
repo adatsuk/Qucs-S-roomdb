@@ -29,6 +29,7 @@ public:
   LibComp();
  ~LibComp() {};
   Component* newOne();
+  void normalizeLibProperties();
 
   bool createSubNetlist(QTextStream *, QStringList&, int type=1);
   QString getSubcircuitFile();

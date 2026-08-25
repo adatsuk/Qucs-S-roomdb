@@ -158,8 +158,8 @@ bool SimMessage::startProcess()
   ErrText->clear();
 
   QString txt = tr("Starting new simulation on %1 at %2").
-    arg(QDate::currentDate().toString("ddd dd. MMM yyyy")).
-    arg(QTime::currentTime().toString("hh:mm:ss:zzz"));
+    arg(QDate::currentDate().toString("ddd dd. MMM yyyy"),
+        QTime::currentTime().toString("hh:mm:ss:zzz"));
   ProgText->appendPlainText(txt + "\n");
 
   SimProcess.blockSignals(false);
@@ -817,14 +817,14 @@ void SimMessage::FinishSimulation(int Status)
 
   if(Status == 0) {
     QString txt = tr("Simulation ended on %1 at %2").
-      arg(d.toString("ddd dd. MMM yyyy")).
-      arg(t.toString("hh:mm:ss:zzz"));
+      arg(d.toString("ddd dd. MMM yyyy"),
+          t.toString("hh:mm:ss:zzz"));
     ProgText->appendPlainText("\n" + txt + "\n" + tr("Ready."));
   }
   else {
     QString txt = tr("Errors occurred during simulation on %1 at %2").
-      arg(d.toString("ddd dd. MMM yyyy")).
-      arg(t.toString("hh:mm:ss:zzz"));
+      arg(d.toString("ddd dd. MMM yyyy"),
+          t.toString("hh:mm:ss:zzz"));
     ProgText->appendPlainText("\n" + txt + "\n" + tr("Aborted."));
   }
 

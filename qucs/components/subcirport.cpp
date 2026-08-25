@@ -31,7 +31,7 @@ SubCirPort::SubCirPort()
 		QObject::tr("type of the port (for digital simulation only)")
 		+" [analog, in, out, inout]"));
 
-  createSymbol();
+  SubCirPort::createSymbol();
   tx = x1+4;
   ty = y2+4;
   icon_dx = 4;

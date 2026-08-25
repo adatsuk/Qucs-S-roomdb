@@ -22,6 +22,10 @@
 #include "extsimkernels/qucs2spice.h"
 #include "extsimkernels/spicecompat.h"
 
+#ifdef QUCS_ENABLE_CORE
+#include "core_primitive_symbol.h"
+#endif
+
 
 #include <QTextStream>
 #include <QDir>
@@ -53,6 +57,65 @@ Component* LibComp::newOne()
   p->Props.at(1)->Value = Props.at(1)->Value;
   p->recreate();
   return p;
+}
+
+namespace {
+
+void renameIndexedLibProps(QList<Property *> &props)
+{
+    static const QStringList paramNames = {
+        QStringLiteral("l"), QStringLiteral("w"), QStringLiteral("ng"), QStringLiteral("m"),
+        QStringLiteral("nf"), QStringLiteral("nr")};
+    int idx = 0;
+    for (int i = 2; i < props.size() && idx < paramNames.size(); ++i, ++idx) {
+        props.at(i)->Name = paramNames.at(idx);
+        props.at(i)->Description = paramNames.at(idx);
+    }
+}
+
+bool looksLikeOldNamedExport(const QList<Property *> &props)
+{
+    static const QStringList paramNames = {
+        QStringLiteral("l"), QStringLiteral("w"), QStringLiteral("ng"), QStringLiteral("m"),
+        QStringLiteral("nf"), QStringLiteral("nr")};
+    return props.size() > 3 && paramNames.contains(props.at(2)->Value);
+}
+
+void migrateOldNamedLibProps(QList<Property *> &props)
+{
+    static const QStringList paramNames = {
+        QStringLiteral("l"), QStringLiteral("w"), QStringLiteral("ng"), QStringLiteral("m"),
+        QStringLiteral("nf"), QStringLiteral("nr")};
+    QStringList values;
+    for (int i = 2; i < props.size(); ++i) {
+        if (((i - 2) % 2) == 0) {
+            continue;
+        }
+        values.append(props.at(i)->Value);
+    }
+    while (props.size() > 2) {
+        delete props.takeLast();
+    }
+    for (int i = 0; i < values.size() && i < paramNames.size(); ++i) {
+        props.append(new Property(paramNames.at(i), values.at(i), true, paramNames.at(i)));
+    }
+}
+
+} // namespace
+
+void LibComp::normalizeLibProperties()
+{
+    if (Props.size() >= 2) {
+        Props.at(0)->display = false;
+        Props.at(1)->display = false;
+    }
+    if (looksLikeOldNamedExport(Props)) {
+        migrateOldNamedLibProps(Props);
+        return;
+    }
+    if (Props.size() > 2 && Props.at(2)->Name.startsWith(QLatin1Char('p'))) {
+        renameIndexedLibProps(Props);
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -199,6 +262,15 @@ int LibComp::loadSymbol()
   int z, Result;
   QString FileString, Line;
   z = loadSection("Symbol", FileString);
+#ifdef QUCS_ENABLE_CORE
+  if (z < 0) {
+    QString coreSymbol;
+    if (qucs_core::tryLoadCorePrimitiveSymbol(Props.at(1)->Value, coreSymbol)) {
+      FileString = coreSymbol;
+      z = 0;
+    }
+  }
+#endif
   if(z < 0) {
     if(z != -7)  return z;
 
@@ -312,7 +384,7 @@ QString LibComp::netlist()
   QString s = "Sub:"+Name;   // output as subcircuit
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " "+p1->Connection->Name;   // node names
 
   // output property
@@ -366,7 +438,7 @@ QString LibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
     Q_UNUSED(dialect);
 
     QString s = SpiceModel + Name + " " + "0"; // connect ground of subckt to circuit ground
-    for (Port *p1 : Ports)
+    for (Port *p1 : std::as_const(Ports))
       s += " "  + spicecompat::normalize_node_name(p1->Connection->Name);   // node names
     s += " " + createType();
 
@@ -395,7 +467,7 @@ QString LibComp::getSpiceLibrary()
   if (r<0) {
     return QString();
   }
-  for (const auto &file : attach) {
+  for (const auto &file : std::as_const(attach)) {
     if (file.endsWith(".cir", Qt::CaseInsensitive) ||
         file.endsWith(".ckt", Qt::CaseInsensitive) ||
         file.endsWith(".lib", Qt::CaseInsensitive) ||

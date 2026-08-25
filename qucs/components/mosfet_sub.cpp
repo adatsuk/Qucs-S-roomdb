@@ -136,7 +136,7 @@ MOSFET_sub::MOSFET_sub()
 {
   Description = QObject::tr("MOS field-effect transistor with substrate");
   Simulator = spicecompat::simAll;
-  createSymbol();
+  MOSFET_sub::createSymbol();
   tx = x2+4;
   ty = y1+4;
   Model = "MOSFET";
@@ -160,7 +160,7 @@ QString MOSFET_sub::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
     QList<int> pin_seq;
     pin_seq<<1<<0<<2<<3; // Pin sequence: DGS
     // output all node names
-    for (int pin : pin_seq) {
+    for (int pin : std::as_const(pin_seq)) {
         QString nam = Ports.at(pin)->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -179,10 +179,10 @@ QString MOSFET_sub::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
     QStringList check_defaults_list;
     QString unit;
     check_defaults_list<<"Nsub"<<"Nss";
-    for (const QString& parnam : check_defaults_list) { // Check some parameters for default value (zero)
+    for (const QString& parnam : std::as_const(check_defaults_list)) { // Check some parameters for default value (zero)
         double val,fac;   // And reduce parameter list
         misc::str2num(getProperty(parnam)->Value,val,unit,fac);
-        if ((val *= fac)==0.0) {
+        if ((val * fac)==0.0) {
             spice_incompat.append(parnam);
         }
     }
@@ -200,15 +200,15 @@ QString MOSFET_sub::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
 
     if (getProperty("UseGlobTemp")->Value == "yes") {
       s += QStringLiteral(" MMOD_%1 L=%2 W=%3 Ad=%4 As=%5 Pd=%6 Ps=%7\n")
-      .arg(Name).arg(l).arg(w).arg(ad).arg(as).arg(pd).arg(ps);
+      .arg(Name, l, w, ad, as, pd, ps);
     } else {
       s += QStringLiteral(" MMOD_%1 L=%2 W=%3 Ad=%4 As=%5 Pd=%6 Ps=%7 Temp=%8\n")
-      .arg(Name).arg(l).arg(w).arg(ad).arg(as).arg(pd).arg(ps).arg(getProperty("Temp")->Value);
+      .arg(Name, l, w, ad, as, pd, ps, getProperty("Temp")->Value);
     }
 
     if (dialect != spicecompat::CDL)
     {
-        s += QStringLiteral(".MODEL MMOD_%1 %2MOS (%3)\n").arg(Name).arg(mosfet_type).arg(par_str);
+        s += QStringLiteral(".MODEL MMOD_%1 %2MOS (%3)\n").arg(Name, mosfet_type, par_str);
     }
 
     return s;

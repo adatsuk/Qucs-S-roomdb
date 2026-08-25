@@ -66,7 +66,7 @@ int fillFromSpiceDialog::parseModelcard()
   // tokenize modelcard
   QStringList tokens;
   QString tok;
-  for (const auto &c: ModelCard) {
+  for (const auto &c: std::as_const(ModelCard)) {
     if (c.isLetterOrNumber() || c == '_' ||
         c == '.' || c == '+' || c == '-') {
       tok += c;
@@ -171,7 +171,7 @@ QString fillFromSpiceDialog::convertNumNotation(const QString &value)
 
 void fillFromSpiceDialog::fillCompProps()
 {
-  for(Property *p : Comp->Props) {
+  for(Property *p : std::as_const(Comp->Props)) {
     QString name = p->Name;
     name = name.toLower();
     if (parsedProps.contains(name)) {

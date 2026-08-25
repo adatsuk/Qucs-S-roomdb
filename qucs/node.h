@@ -35,7 +35,7 @@ public:
 
   // Add an element to the node's connections.
   // No-op if element is already connected.
-  void connect(Wire* wire) { if (!is_connected(wire)) m_wires.emplace_front(wire); }
+  void connect(Wire* wire);
   void connect(Component* comp) { if (!is_connected(comp)) m_components.emplace_front(comp); }
 
   // Remove element from the node's connections.
@@ -77,6 +77,26 @@ public:
 
   Node* merge(Node* other);
 
+  /// Style handling
+  /// @{
+  QColor color() const { return m_color; }
+  void setColor(const QColor& c) { m_color = c; }
+  void clearColor() { m_color = Qt::darkBlue; }
+
+  int lineWidth() const { return m_lineWidth; }
+  void setLineWidth(int w) { m_lineWidth = w; }
+  void clearLineWidth() { m_lineWidth = 2; }
+  /// @}
+
+  /// @brief Propagate the style settings through the nodes and wires across the schematic
+  /// @param c Color to propagate
+  /// @param linewidth Line width to propagate
+  /// @param allNodes List of all the nodes in the schematic
+  /// @param allWires List of all the wires in the schematic
+  void propagateStyle(const QColor& c, int lineWidth,
+                      const std::list<Node*>& allNodes,
+                      const std::list<Wire*>& allWires);
+
 private:
   // Nodes usually have quite a few connections. In ideal case, when all wire
   // placement optimizations work properly, there can be at most four connections
@@ -88,6 +108,10 @@ private:
   // A node doesn't claim ownership of any connected object, storing raw pointers is OK.
   std::list<Wire*> m_wires;
   std::list<Component*> m_components;
+
+  /// Style
+  QColor m_color;  // Color
+  int m_lineWidth; // Line width
 };
 
 #endif

@@ -90,7 +90,7 @@ QString BiasT::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat:
     QString pin1 = spicecompat::normalize_node_name(Ports.at(0)->Connection->Name);
     QString pin2 = spicecompat::normalize_node_name(Ports.at(1)->Connection->Name);
     QString pin3 = spicecompat::normalize_node_name(Ports.at(2)->Connection->Name);
-    s += QStringLiteral("C_%1 %2 %3 %4\n").arg(Name).arg(pin1).arg(pin2).arg(C);
-    s += QStringLiteral("L_%1 %2 %3 %4\n").arg(Name).arg(pin2).arg(pin3).arg(L);
+    s += QStringLiteral("C_%1 %2 %3 %4\n").arg(Name, pin1, pin2, C);
+    s += QStringLiteral("L_%1 %2 %3 %4\n").arg(Name, pin2, pin3, L);
     return s;
 }

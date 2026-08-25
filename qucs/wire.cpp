@@ -22,7 +22,7 @@
 
 #include <QPainter>
 
-Wire::Wire(int _x1, int _y1, int _x2, int _y2)
+Wire::Wire(int _x1, int _y1, int _x2, int _y2) : m_color(Qt::darkBlue), m_lineWidth(2)
 {
   x1 = _x1;
   y1 = _y1;
@@ -89,13 +89,13 @@ bool Wire::getSelected(int x_, int y_)
 void Wire::paint(QPainter *painter) const {
   painter->save();
   if (isSelected) {
-    painter->setPen(QPen(Qt::darkGray,6));
+    painter->setPen(QPen(m_color, 6));
     painter->drawLine(x1, y1, x2, y2);
-    painter->setPen(QPen(Qt::lightGray,2));
+    painter->setPen(QPen(Qt::lightGray, m_lineWidth));
     painter->drawLine(x1, y1, x2, y2);
   }
   else {
-    painter->setPen(QPen(Qt::darkBlue,2));
+    painter->setPen(QPen(m_color, m_lineWidth));
     painter->drawLine(x1, y1, x2, y2);
   }
   painter->restore();
@@ -165,9 +165,18 @@ QString Wire::save()
           s += " \""+label()->Name+"\" ";
           s += QString::number(label()->x1)+" "+QString::number(label()->y1)+" ";
           s += QString::number(static_cast<int>(qucs_s::geom::distance(QPoint{x1, y1}, label()->root())));
-          s += " \""+label()->initValue+"\">";
+          s += " \""+label()->initValue+"\"";
   }
-  else { s += R"( "" 0 0 0 "">)"; }
+  else { s += R"( "" 0 0 0 "")"; }
+
+  // Only save the style when it actually differs from the default.
+  if (m_color != Qt::darkBlue || m_lineWidth != 2) {
+    s += " " + m_color.name(QColor::HexRgb) + " " + QString::number(m_lineWidth);
+  }
+
+  // Close the line
+  s += ">";
+
   return s;
 }
 
@@ -226,6 +235,21 @@ bool Wire::load(const QString& _s)
     if(!ok) return false;
 
     setName(delta, nx, ny, n, s.section('"',3,3));  // Wire Label
+  }
+
+  // Load style
+  QString styleStr = s.section('"',4,4).trimmed();
+  if (!styleStr.isEmpty()) {
+    QStringList parts = styleStr.split(' ', Qt::SkipEmptyParts);
+    if (parts.size() >= 1) {
+      QColor c(parts.at(0));
+      if (c.isValid()) setColor(c);
+    }
+    if (parts.size() >= 2) {
+      bool okWidth = false;
+      int w = parts.at(1).toInt(&okWidth);
+      if (okWidth && w > 0) setLineWidth(w);
+    }
   }
 
   return true;
@@ -365,4 +389,25 @@ void Wire::updateP2() noexcept {
 void Wire::updatePorts() noexcept {
   updateP1();
   updateP2();
+}
+
+void Wire::propagateStyle(const QColor& c, int lineWidth,
+                          const std::list<Node*>& allNodes,
+                          const std::list<Wire*>& allWires) {
+  if (Port1) {
+    Port1->propagateStyle(c, lineWidth, allNodes, allWires);
+  } else if (Port2) {
+    Port2->propagateStyle(c, lineWidth, allNodes, allWires);
+  } else {
+    // Floating wire, no connected node
+    setColor(c);
+    if (hasLabel()) {
+      const QString key = label()->Name;
+      for (Wire* candidate : allWires) {
+        if (candidate != this && candidate->hasLabel() && candidate->label()->Name == key) {
+          candidate->propagateStyle(c, lineWidth, allNodes, allWires);
+        }
+      }
+    }
+  }
 }

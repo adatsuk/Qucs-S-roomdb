@@ -53,7 +53,7 @@ bool isPropertyTunable(Component* propertyOwner, Property* property) {
     return false; // String
   }
   // Check if the value contains symbols *, /, -, +
-  for (const auto& chr : property->Value) {
+  for (const auto& chr : std::as_const(property->Value)) {
     if (!chr.isLetterOrNumber() && (chr != '.') && (chr != ' ')) {
       return false;
     }
@@ -95,7 +95,7 @@ tunerElement::tunerElement(QWidget *parent, Component *component, Property *pp, 
         if (val.at(i).isLetter())
         {
             units_index = i;//Select index
-            numValue = val.mid(0, i).toFloat();//Get the magnitude
+            numValue = QStringView(val).mid(0, i).toFloat();//Get the magnitude
             break;
         }
     }
@@ -125,7 +125,7 @@ tunerElement::tunerElement(QWidget *parent, Component *component, Property *pp, 
         //If one of the keywords appears in the description text, then the key of the map
         //is used as unit...
         bool found = false;
-        for(auto e : Keywords.keys())
+        for(const auto &e : Keywords.keys())
         {
           for (int i = 0; i < Keywords[e].length(); i++)
           {

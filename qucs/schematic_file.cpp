@@ -39,7 +39,6 @@
 #include "components/vhdlfile.h"
 #include "components/verilogfile.h"
 #include "components/libcomp.h"
-#include "components/sparamfile.h"
 #include "module.h"
 #include "misc.h"
 #include "extsimkernels/abstractspicekernel.h"
@@ -198,7 +197,7 @@ bool Schematic::pasteFromClipboard(QTextStream *stream, std::list<Element*> *pe)
   // Check for file URLs (drag and drop from file manager)
   if (mimeData->hasUrls()) {
     QList<QUrl> urls = mimeData->urls();
-    for (const QUrl& url : urls) {
+    for (const QUrl& url : std::as_const(urls)) {
       if (url.isLocalFile()) {
         QString filePath = url.toLocalFile();
         if (isImageFilePath(filePath)) {
@@ -667,7 +666,7 @@ int Schematic::saveSymbolJSON()
 int Schematic::saveDocument()
 {
 #ifdef QUCS_ENABLE_CORE
-  if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreSchematicPath(a_DocName)) {
+  if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
     const QString tempPath =
         QDir::temp().filePath(QStringLiteral("qucs_core_%1.sch").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
     QFile::remove(tempPath);
@@ -868,8 +867,19 @@ int Schematic::saveDocument()
       // Append _sym.json into _props.json, save into _symbol.json
       QFile f1(QucsSettings.QucsWorkDir.filePath(fileBase()+"_props.json"));
       QFile f2(QucsSettings.QucsWorkDir.filePath(fileBase()+"_sym.json"));
-      f1.open(QIODevice::ReadOnly | QIODevice::Text);
-      f2.open(QIODevice::ReadOnly | QIODevice::Text);
+
+      if (!f1.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Cannot open %1").arg(f1.fileName()));
+        return -1;
+      }
+
+      if (!f2.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Cannot open %1").arg(f2.fileName()));
+        f1.close();
+        return -1;
+      }
 
       QString dat1 = QString(f1.readAll());
       QString dat2 = QString(f2.readAll());
@@ -879,7 +889,14 @@ int Schematic::saveDocument()
       finalJSON = finalJSON.replace("}{", "");
 
       QFile f3(QucsSettings.QucsWorkDir.filePath(fileBase()+"_symbol.json"));
-      f3.open(QIODevice::WriteOnly | QIODevice::Text);
+      if (!f3.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, tr("Error"),
+                              tr("Cannot write %1").arg(f3.fileName()));
+        f1.close();
+        f2.close();
+        return -1;
+      }
+
       QTextStream out(&f3);
       out << finalJSON;
 
@@ -978,7 +995,7 @@ bool Schematic::loadProperties(QTextStream *stream)
 void Schematic::simpleInsertComponent(Component *c)
 {
   // connect every node of component
-  for (Port *pp : c->Ports) {
+  for (Port *pp : std::as_const(c->Ports)) {
     Node* pn = provideNode(c->cx + pp->x, c->cy + pp->y);
 
     pn->connect(c);  // connect schematic node to component node
@@ -999,7 +1016,7 @@ bool Schematic::loadComponents(QTextStream *stream, std::list<Component*> *List)
   Component *c;
   while(!stream->atEnd()) {
     Line = stream->readLine();
-    if (Line == QLatin1String("</Components>")) return true;
+    if(Line.at(0) == '<') if(Line.at(1) == '/') return true;
     Line = Line.trimmed();
     if(Line.isEmpty()) continue;
 
@@ -1026,19 +1043,21 @@ bool Schematic::loadComponents(QTextStream *stream, std::list<Component*> *List)
 // Inserts a wire without performing logic for optimizing.
 void Schematic::simpleInsertWire(Wire *pw)
 {
-  Node* pn = provideNode(pw->P1());
+  Node* pn1 = provideNode(pw->P1());
 
   if(pw->P1() == pw->P2()) {
-    pn->acquireLabel(pw->releaseLabel());   // wire with length zero are just node labels
+    pn1->acquireLabel(pw->releaseLabel());   // wire with length zero are just node labels
     delete pw;           // delete wire because this is not a wire
     return;
   }
-  pn->connect(pw);  // connect schematic node to component node
-  pw->Port1 = pn;
+  pn1->connect(pw);  // connect schematic node to component node
+  pw->Port1 = pn1;
 
-  pn = provideNode(pw->P2());
-  pn->connect(pw);  // connect schematic node to component node
-  pw->Port2 = pn;
+  Node* pn2 = provideNode(pw->P2());
+  pn2->connect(pw);  // connect schematic node to component node
+  pw->Port2 = pn2;
+
+  reconcileNetStyle(pn1, pn2);
 
   a_DocWires.push_back(pw);
 }
@@ -1106,7 +1125,7 @@ bool Schematic::loadDiagrams(QTextStream *stream, std::list<Diagram*> *List)
   QString Line, cstr;
   while(!stream->atEnd()) {
     Line = stream->readLine();
-    if (Line == QLatin1String("</Diagrams>")) return true;
+    if(Line.at(0) == '<') if(Line.at(1) == '/') return true;
     Line = Line.trimmed();
     if(Line.isEmpty()) continue;
 
@@ -1199,19 +1218,21 @@ bool Schematic::loadPaintings(QTextStream *stream, std::list<Painting*> *List)
 bool Schematic::loadDocument()
 {
 #ifdef QUCS_ENABLE_CORE
-  if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreSchematicPath(a_DocName)) {
+  if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
     const QString tempPath =
         QDir::temp().filePath(QStringLiteral("qucs_core_%1.sch").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
     QFile::remove(tempPath);
 
-    const qucs_core::IoResult exported = qucs_core::exportCoreToSchFile(a_DocName, tempPath);
+    const qucs_core::IoResult exported = qucs_core::exportCoreViewToFile(a_DocName, tempPath);
     if (!exported.ok) {
       QMessageBox::critical(nullptr, QObject::tr("Error"),
                             QObject::tr("Cannot load CORE file:\n%1").arg(exported.message));
       return false;
     }
 
-    const qint64 coordDivisor = qucs_core::normalizeSchCoordinatesForDisplay(tempPath);
+    const qint64 coordDivisor = qucs_core::isCoreSymbolPath(a_DocName)
+                                    ? 1
+                                    : qucs_core::normalizeSchCoordinatesForDisplay(tempPath);
 
     const QString corePath = a_DocName;
     qucs_core::g_coreBridgeActive = true;
@@ -1219,6 +1240,7 @@ bool Schematic::loadDocument()
     const bool ok = loadDocument();
     a_DocName = corePath;
     setFileInfo(corePath);
+    setName(corePath);
     qucs_core::g_coreBridgeActive = false;
     QFile::remove(tempPath);
     if (ok) {
@@ -1582,7 +1604,6 @@ void Schematic::propagateNode(QStringList& Collect,
   Cons.clear();
 }
 
-#include <iostream>
 
 /*!
  * \brief Schematic::throughAllComps
@@ -1641,7 +1662,7 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
         {
           i = 0;
           // apply in/out signal types of subcircuit
-          for (Port *pp : pc->Ports)
+          for (Port *pp : std::as_const(pc->Ports))
           {
             pp->Type = it.value().PortTypes[i];
             pp->Connection->DType = pp->Type;
@@ -1679,7 +1700,7 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
       {
         i = 0;
         // save in/out signal types of subcircuit
-        for (Port *pp : pc->Ports)
+        for (Port *pp : std::as_const(pc->Ports))
         {
             //if(i>=d->a_PortTypes.count())break;
             pp->Type = d->a_PortTypes[i];
@@ -1785,8 +1806,7 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
       s = pc->Props.front()->Value;
       if(s.isEmpty()) {
         ErrText->appendPlainText(QObject::tr("ERROR: No file name in %1 component \"%2\".").
-          arg(pc->Model).
-          arg(pc->Name));
+          arg(pc->Model, pc->Name));
         return false;
       }
       QString f = pc->getSubcircuitFile();
@@ -2215,7 +2235,7 @@ bool Schematic::createSubNetlist(QTextStream *stream, int& countInit,
       if (!kern->checkSchematic(err_lst)) {
           QString s = QStringLiteral("Subcircuit %1 contains SPICE-incompatible components.\n"
                               "Check these components: %2 \n")
-                  .arg(this->a_DocName).arg(err_lst.join("; "));
+                  .arg(this->a_DocName, err_lst.join("; "));
           ErrText->insertPlainText(s);
           return false;
       }

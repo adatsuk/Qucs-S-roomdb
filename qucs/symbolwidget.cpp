@@ -605,8 +605,7 @@ int SymbolWidget::analyseLine(const QString& Row)
       if (PortNames.contains(i3)) {
         qWarning() << QString("Port index %1 overridden, old port '%2' replaced by '%3'")
                       .arg(i3)
-                      .arg(getPortName(i3))
-                      .arg(portName);
+                      .arg(getPortName(i3),portName);
       }
       PortNames.insert(i3, portName);
     }

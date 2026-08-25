@@ -43,7 +43,7 @@ CurveDiagram::CurveDiagram(int _cx, int _cy) : Diagram(_cx, _cy)
   x3 = 207;    // with some distance for right axes text
 
   Name = "Curve"; // BUG.
-  calcDiagram();
+  CurveDiagram::calcDiagram();
 }
 
 CurveDiagram::~CurveDiagram()

@@ -20,6 +20,10 @@
 #include "qucsdoc.h"
 #include "qucs.h"
 
+#ifdef QUCS_ENABLE_CORE
+#include "core_schematic_io.h"
+#endif
+
 
 QucsDoc::QucsDoc(QucsApp *App_, const QString& Name_) :
   a_DocName(Name_),
@@ -41,7 +45,11 @@ QucsDoc::QucsDoc(QucsApp *App_, const QString& Name_) :
   QFileInfo Info(a_DocName);
   if(!a_DocName.isEmpty()) {
     a_DocName = Info.absoluteFilePath();
+#ifdef QUCS_ENABLE_CORE
+    QString base = qucs_core::documentBaseName(a_DocName);
+#else
     QString base = Info.completeBaseName();
+#endif
     QString ext = Info.suffix();
 
     if(ext == "m" || ext == "oct")

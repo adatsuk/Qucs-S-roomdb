@@ -1,6 +1,5 @@
 #include "spicecompat.h"
 #include "main.h"
-#include "misc.h"
 
 #include <QDebug>
 #include <QRegularExpression>
@@ -296,7 +295,7 @@ int spicecompat::getPins(const QString &file, const QString &compname, QStringLi
           if (lin.startsWith("+")) {
             lin.remove(0,1);
             QStringList pins = lin.split(QRegularExpression("[ \\t]"),Qt::SkipEmptyParts);
-            for(const auto &pin: pins) {
+            for(const auto &pin: std::as_const(pins)) {
               if (pin.toLower() == "params:") {
                 header_start = false;
                 break;
@@ -320,7 +319,7 @@ int spicecompat::getPins(const QString &file, const QString &compname, QStringLi
             header_start = true;
             lst2.removeFirst();
             lst2.removeFirst();
-            for (const auto &s1: lst2) {
+            for (const auto &s1: std::as_const(lst2)) {
                 QString pp = s1;
                 if (pp.toLower() == "params:") header_start = false;
                 if (!s1.contains('=') &&
@@ -349,7 +348,7 @@ QString spicecompat::getSubcktName(const QString& subfilename)
         const QRegularExpression subckt_header("^\\s*\\.(S|s)(U|u)(B|b)(C|c)(K|k)(T|t)\\s.*");
         const QRegularExpression sep("\\s");
         QStringList lst = QString(sub_file.readAll()).split("\n");
-        for (const QString& str : lst) {
+        for (const QString& str : std::as_const(lst)) {
             if (subckt_header.match(str).hasMatch()) {
                 s = str.section(sep,1,1,QString::SectionSkipEmpty);
                 break;

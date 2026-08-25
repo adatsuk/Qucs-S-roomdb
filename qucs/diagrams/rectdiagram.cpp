@@ -45,7 +45,7 @@ RectDiagram::RectDiagram(int _cx, int _cy) : Diagram(_cx, _cy)
   x3 = 247;    // with some distance for right axes text
 
   Name = "Rect"; // BUG
-  calcDiagram();
+  RectDiagram::calcDiagram();
 }
 
 RectDiagram::~RectDiagram()

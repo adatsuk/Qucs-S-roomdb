@@ -68,8 +68,7 @@ QString SpiceSENS_AC::spice_netlist(spicecompat::SpiceDialect dialect /* = spice
         QString fstop = spicecompat::normalize_value(Props.at(3)->Value); // Stop freq.
         QString out = "spice4qucs." + Name.toLower() + ".sens.prn";
         s = QStringLiteral("sens %1 ac %2 %3 %4 %5\n")
-                .arg(Props.at(0)->Value).arg(Props.at(1)->Value).arg(Props.at(4)->Value)
-                .arg(fstart).arg(fstop);
+                .arg(Props.at(0)->Value, Props.at(1)->Value, Props.at(4)->Value, fstart, fstop);
         s += QStringLiteral("write %1 all\n").arg(out);
     }
 

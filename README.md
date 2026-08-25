@@ -48,7 +48,7 @@ GitHub Actions (`.github/workflows/ci.yaml`) builds **qucs-s** with CORE on **Ro
 
 ## Upstream
 
-This tree tracks [ra3xdh/qucs_s](https://github.com/ra3xdh/qucs_s) with local CORE changes. For stock Qucs-S releases without CORE, use upstream.
+This tree tracks [ra3xdh/qucs_s](https://github.com/ra3xdh/qucs_s) `current` (26.1.1+) with local CORE changes. For stock Qucs-S releases without CORE, use upstream.
 
 ## License
 

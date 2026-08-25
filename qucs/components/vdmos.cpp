@@ -139,7 +139,7 @@ VDMOS::VDMOS() {
                               QObject::tr("Thermal model") + " [on,off]"));
 
 
-    createSymbol();
+    VDMOS::createSymbol();
     tx = x2 + 4;
     ty = y1 + 4;
     Model = "VDMOS";
@@ -172,7 +172,7 @@ QString VDMOS::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat:
       pin_seq<<1<<0<<2; // Pin sequence: DGS
     }
     // output all node names
-    for (int pin : pin_seq) {
+    for (int pin : std::as_const(pin_seq)) {
         QString nam = Ports.at(pin)->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -189,13 +189,13 @@ QString VDMOS::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat:
     if (getProperty("UseGlobTemp")->Value == "yes") {
       s += QString(" VDMOS_%1 ").arg(Name);
     } else {
-      s += QString(" VDMOS_%1 TEMP=%2").arg(Name).arg(getProperty("Temp")->Value);
+      s += QString(" VDMOS_%1 TEMP=%2").arg(Name, getProperty("Temp")->Value);
     }
 
     if (hasThermal) s += " THERMAL";
     s += "\n";
 
-        s += QString(".MODEL VDMOS_%1 VDMOS(%2 %3)\n").arg(Name).arg(type).arg(par_str);
+        s += QString(".MODEL VDMOS_%1 VDMOS(%2 %3)\n").arg(Name, type, par_str);
 
     return s;
 }

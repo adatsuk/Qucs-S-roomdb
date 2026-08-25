@@ -125,7 +125,7 @@ QString Winding::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
 
     s = "X_" + Name;
     s += QString(" %1 %2 %3 %4 winding N=%5 Rs=%6\n")
-             .arg(P1).arg(P2).arg(H_node).arg(B_node).arg(Nt).arg(Rs);
+             .arg(P1, P2, H_node, B_node, Nt, Rs);
     s += "\n";
 
     return s;

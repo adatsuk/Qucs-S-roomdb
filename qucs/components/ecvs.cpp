@@ -96,11 +96,11 @@ QString ecvs::netlist()
   QString s = Model+":"+Name;
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " "+p1->Connection->Name;   // node names
 
   // output all properties
-  for(Property *p2 : Props)
+  for(Property *p2 : std::as_const(Props))
     s += " "+p2->Name+"=\""+p2->Value+"\"";
 
   return s + "\n";

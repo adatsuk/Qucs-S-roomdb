@@ -39,7 +39,7 @@ TabDiagram::TabDiagram(int _cx, int _cy) : Diagram(_cx, _cy)
   Name = "Tab";
   xAxis.limit_min = 0.0;  // scroll bar position (needs to be saved in file)
 
-  calcDiagram();
+  TabDiagram::calcDiagram();
 }
 
 TabDiagram::~TabDiagram()
@@ -54,7 +54,7 @@ void TabDiagram::paintDiagram(QPainter *painter) {
   painter->save();
   painter->translate(cx, cy);
 
-  for (qucs::Line *pl : Lines) {
+  for (qucs::Line *pl : std::as_const(Lines)) {
     painter->setPen(pl->style);
     painter->drawLine(pl->x1, -pl->y1, pl->x2, -pl->y2);
   }
@@ -109,7 +109,7 @@ void TabDiagram::paintDiagram(QPainter *painter) {
 
 
   painter->setPen(Qt::black);
-  for (Text *pt : Texts) {
+  for (Text *pt : std::as_const(Texts)) {
     painter->drawText(pt->x, -pt->y, 1, 1, Qt::TextDontClip, pt->s);
   }
 
@@ -244,7 +244,7 @@ int TabDiagram::calcDiagram()
   firstGraph = g;
   // ................................................
   // all dependent variables
-  for (Graph *g : Graphs) {
+  for (Graph *g : std::as_const(Graphs)) {
     y = y2-tHeight-5;
     colWidth = 0;
 

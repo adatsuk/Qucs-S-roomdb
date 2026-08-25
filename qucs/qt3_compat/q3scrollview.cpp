@@ -249,7 +249,7 @@ void Q3ScrollViewData::hideOrShowAll(Q3ScrollView* sv, bool isScroll)
         clipped_viewport->move(nx,ny);
         clipped_viewport->update();
     }
-    for (QSVChildRec *r : children) {
+    for (QSVChildRec *r : std::as_const(children)) {
         r->hideOrShow(sv, clipped_viewport);
     }
 }
@@ -260,7 +260,7 @@ void Q3ScrollViewData::moveAllBy(int dx, int dy)
         clipped_viewport->move(clipped_viewport->x()+dx,
                                 clipped_viewport->y()+dy);
     } else {
-        for (QSVChildRec *r : children) {
+        for (QSVChildRec *r : std::as_const(children)) {
             r->child->move(r->child->x()+dx,r->child->y()+dy);
         }
         if (static_bg)
@@ -270,7 +270,7 @@ void Q3ScrollViewData::moveAllBy(int dx, int dy)
 
 bool Q3ScrollViewData::anyVisibleChildren()
 {
-    for (QSVChildRec *r : children) {
+    for (QSVChildRec *r : std::as_const(children)) {
         if (r->child->isVisible()) return true;
     }
     return false;

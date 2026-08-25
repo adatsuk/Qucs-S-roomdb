@@ -1,5 +1,6 @@
 #include "core_schematic_io.h"
 
+#include "core_paths.h"
 #include "database.h"
 #include "qucs_exporter.h"
 #include "qucs_importer.h"
@@ -8,6 +9,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QObject>
+#include <QRegularExpression>
 #include <QStringList>
 
 #include <algorithm>
@@ -18,6 +20,31 @@ namespace qucs_core {
 bool g_coreBridgeActive = false;
 
 namespace {
+
+core::QucsExporter::Options exporterOptionsFromEnvironment()
+{
+    core::QucsExporter::Options options;
+    if (qEnvironmentVariableIsSet("LIBMAN_TECH_LIBRARY")) {
+        options.techLibrary = qEnvironmentVariable("LIBMAN_TECH_LIBRARY").toStdString();
+    }
+    if (qEnvironmentVariableIsSet("QUCS_PRIMITIVE_LIB")) {
+        options.qucsPrimitiveLib = qEnvironmentVariable("QUCS_PRIMITIVE_LIB").toStdString();
+    }
+    if (qEnvironmentVariableIsSet("CORE_PRIMITIVE_LIBS")) {
+        const QStringList paths =
+            qEnvironmentVariable("CORE_PRIMITIVE_LIBS").split(QRegularExpression(QStringLiteral("[;:]")),
+                                                              Qt::SkipEmptyParts);
+        for (const QString &path : paths) {
+            const QString trimmed = path.trimmed();
+            if (!trimmed.isEmpty()) {
+                options.primitiveCorePaths.push_back(trimmed.toStdString());
+            }
+        }
+    } else if (qEnvironmentVariableIsSet("CORE_PRIMITIVE_LIB")) {
+        options.primitiveCorePaths.push_back(qEnvironmentVariable("CORE_PRIMITIVE_LIB").toStdString());
+    }
+    return options;
+}
 
 QString normalizedViewSuffix(const QString &suffix)
 {
@@ -259,6 +286,24 @@ void denormalizeSchCoordinates(const QString &schPath, qint64 divisor)
     file.write(normalized.join(QStringLiteral("\n")).toUtf8());
 }
 
+bool isCoreViewPath(const QString &path)
+{
+    const QString fileName = QFileInfo(path).fileName();
+    if (!fileName.endsWith(QStringLiteral(".core"), Qt::CaseInsensitive)) {
+        return false;
+    }
+
+    const QString stem = fileName.left(fileName.size() - QStringLiteral(".core").size());
+    const int dot = stem.lastIndexOf(QLatin1Char('.'));
+    if (dot <= 0) {
+        return true;
+    }
+
+    const QString viewName = normalizedViewSuffix(stem.mid(dot + 1));
+    return viewName == QStringLiteral("schematic") || viewName == QStringLiteral("symbol")
+        || viewName == QStringLiteral("core") || viewName == QStringLiteral("layout");
+}
+
 bool isCoreSchematicPath(const QString &path)
 {
     const QString fileName = QFileInfo(path).fileName();
@@ -273,9 +318,35 @@ bool isCoreSchematicPath(const QString &path)
     }
 
     const QString viewName = normalizedViewSuffix(stem.mid(dot + 1));
-    return viewName == QStringLiteral("schematic")
-        || viewName == QStringLiteral("core")
+    return viewName == QStringLiteral("schematic") || viewName == QStringLiteral("core")
         || viewName == QStringLiteral("layout");
+}
+
+bool isCoreSymbolPath(const QString &path)
+{
+    const QString fileName = QFileInfo(path).fileName();
+    if (!fileName.endsWith(QStringLiteral(".core"), Qt::CaseInsensitive)) {
+        return false;
+    }
+
+    const QString stem = fileName.left(fileName.size() - QStringLiteral(".core").size());
+    const int dot = stem.lastIndexOf(QLatin1Char('.'));
+    if (dot <= 0) {
+        return false;
+    }
+
+    return normalizedViewSuffix(stem.mid(dot + 1)) == QStringLiteral("symbol");
+}
+
+QString documentBaseName(const QString &path)
+{
+    if (isCoreViewPath(path)) {
+        const QString cellName = cellNameFromCorePath(path);
+        if (!cellName.isEmpty()) {
+            return cellName;
+        }
+    }
+    return QFileInfo(path).completeBaseName();
 }
 
 QString cellNameFromCorePath(const QString &path)
@@ -323,7 +394,7 @@ IoResult exportCoreToSchFile(const QString &corePath, const QString &schPath)
             return result;
         }
 
-        core::QucsExporter exporter;
+        core::QucsExporter exporter(exporterOptionsFromEnvironment());
         exporter.exportCell(db, exportCellName, schPath.toStdString());
         for (const std::string &warning : exporter.warnings()) {
             qWarning() << "CORE export warning:" << QString::fromStdString(warning);
@@ -346,6 +417,56 @@ IoResult exportCoreToSchFile(const QString &corePath, const QString &schPath)
     }
 }
 
+IoResult exportCoreSymbolToSchFile(const QString &corePath, const QString &schPath)
+{
+    IoResult result;
+    try {
+        const core::Database db = core::Database::loadFromFile(corePath.toStdString());
+        const QString cellName = cellNameFromCorePath(corePath);
+        if (cellName.isEmpty()) {
+            result.message = QObject::tr("Failed to determine cell name from CORE file.");
+            return result;
+        }
+
+        const core::Cell *cell = db.lib().findCell(cellName.toStdString());
+        const std::string exportCellName =
+            cell ? cellName.toStdString() : db.lib().cells().empty() ? std::string() : db.lib().cells().front().name();
+        if (exportCellName.empty()) {
+            result.message = QObject::tr("CORE file contains no cells.");
+            return result;
+        }
+
+        core::QucsExporter exporter;
+        exporter.exportSymbolCell(db, exportCellName, schPath.toStdString());
+        for (const std::string &warning : exporter.warnings()) {
+            qWarning() << "CORE symbol export warning:" << QString::fromStdString(warning);
+        }
+        if (!exporter.errors().empty()) {
+            result.message = QString::fromStdString(exporter.errors().front());
+            return result;
+        }
+
+        if (!QFileInfo::exists(schPath)) {
+            result.message = QObject::tr("CORE export did not create a symbol file.");
+            return result;
+        }
+
+        result.ok = true;
+        return result;
+    } catch (const std::exception &ex) {
+        result.message = QString::fromStdString(ex.what());
+        return result;
+    }
+}
+
+IoResult exportCoreViewToFile(const QString &corePath, const QString &schPath)
+{
+    if (isCoreSymbolPath(corePath)) {
+        return exportCoreSymbolToSchFile(corePath, schPath);
+    }
+    return exportCoreToSchFile(corePath, schPath);
+}
+
 IoResult importSchFileToCore(const QString &schPath, const QString &corePath)
 {
     IoResult result;
@@ -363,9 +484,13 @@ IoResult importSchFileToCore(const QString &schPath, const QString &corePath)
             return result;
         }
 
+        const core::ParsedCorePath parsed = core::parseCoreFilePath(corePath.toStdString());
+        const core::ViewType viewType =
+            parsed.valid ? parsed.view : isCoreSymbolPath(corePath) ? core::ViewType::Symbol : core::ViewType::Schematic;
+
         db.setGenerator("CORE qucs_s");
         db.setTechnology("qucs");
-        db.saveToFile(corePath.toStdString(), core::ViewType::Schematic);
+        db.saveToFile(corePath.toStdString(), viewType);
 
         if (!QFileInfo::exists(corePath)) {
             result.message = QObject::tr("CORE save did not create an output file.");

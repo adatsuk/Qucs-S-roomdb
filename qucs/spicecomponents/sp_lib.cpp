@@ -85,7 +85,7 @@ QString S4Q_Lib::getSpiceLibrary()
     }
     file = misc::properAbsFileName(file, containingSchematic);
     QString sec = getProperty("Section")->Value;
-    s += QStringLiteral("%1 \"%2\" %3\n").arg(SpiceModel).arg(file).arg(sec);
+    s += QStringLiteral("%1 \"%2\" %3\n").arg(SpiceModel, file, sec);
   }
 
   return s;

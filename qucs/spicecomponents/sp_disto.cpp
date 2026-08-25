@@ -86,8 +86,7 @@ QString SpiceDisto::spice_netlist(spicecompat::SpiceDialect dialect /* = spiceco
             points = Props.at(3)->Value;
         }
 
-        s = QStringLiteral("disto %1 %2 %3 %4 %5\n").arg(swp).arg(points).arg(fstart).arg(fstop)
-                                             .arg(Props.at(4)->Value.simplified());
+        s = QStringLiteral("disto %1 %2 %3 %4 %5\n").arg(swp, points, fstart, fstop, Props.at(4)->Value.simplified());
     } else {
         s.clear();
     }

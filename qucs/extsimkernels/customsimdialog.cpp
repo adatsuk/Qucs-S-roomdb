@@ -196,7 +196,7 @@ void CustomSimDialog::slotFindVars()
     QStringList strings = a_edtCode->toPlainText().split('\n');
     QRegularExpression let_pattern("^\\s*let\\s+[A-Za-z].*=.+");
 
-    for (const QString& line : strings) {
+    for (const QString& line : std::as_const(strings)) {
         if (let_pattern.match(line).hasMatch()) {
             QString var = line.section('=',0,0);
             var.remove("let ");
@@ -216,7 +216,7 @@ void CustomSimDialog::slotFindOutputs()
     if (a_isXyceScr) {
         QRegularExpression print_ex("^\\s*\\.print\\s.*", QRegularExpression::CaseInsensitiveOption);
         QRegularExpression file_ex("\\s*file\\s*=\\s*", QRegularExpression::CaseInsensitiveOption);
-        for (const QString& line : strings) {
+        for (const QString& line : std::as_const(strings)) {
             if (print_ex.match(line).hasMatch()) {
                 //file_ex.setCaseSensitivity(Qt::CaseInsensitive);
                 int p = line.indexOf(file_ex);
@@ -232,7 +232,7 @@ void CustomSimDialog::slotFindOutputs()
         write_ex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
         QRegularExpression print_rx("^\\s*print\\s.*>.+");
         print_rx.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
-        for (const QString& line : strings) {
+        for (const QString& line : std::as_const(strings)) {
             if (write_ex.match(line).hasMatch()) {
                 outp = line.section(QRegularExpression("\\s"),1,1,QString::SectionSkipEmpty);
                 if ( !outp.isEmpty() ) if ( !outps.contains(outp) ) outps.append(outp);

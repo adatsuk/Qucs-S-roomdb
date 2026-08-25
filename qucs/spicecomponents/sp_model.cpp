@@ -82,7 +82,7 @@ QString S4Q_Model::getSpiceModel()
 
     QString s;
     s.clear();
-    for (Property *pp : Props) {
+    for (Property *pp : std::as_const(Props)) {
         if (!pp->Value.isEmpty())
             s += pp->Value + "\n";
     }

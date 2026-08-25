@@ -102,7 +102,7 @@ QString iTRNOISE::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecomp
     Q_UNUSED(dialect);
 
     QString s = spicecompat::check_refdes(Name,SpiceModel);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -116,7 +116,6 @@ QString iTRNOISE::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecomp
     QString Rtscapt = spicecompat::normalize_value(Props.at(4)->Value);
     QString Rtsemt = spicecompat::normalize_value(Props.at(4)->Value);
 
-    s += QStringLiteral(" DC 0 AC 0 TRNOISE(%1 %2 %3 %4 %5  %6 %7) \n").arg(Na).arg(Nt).arg(Nalpha).arg(Namp).
-                                arg(Rtsam).arg(Rtscapt).arg(Rtsemt);
+    s += QStringLiteral(" DC 0 AC 0 TRNOISE(%1 %2 %3 %4 %5  %6 %7) \n").arg(Na, Nt, Nalpha, Namp, Rtsam, Rtscapt, Rtsemt);
     return s;
 }

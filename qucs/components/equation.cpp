@@ -64,7 +64,7 @@ QString Equation::verilogCode(int)
 {
   QString s;
   // output all equations
-  for(Property *pr : Props)
+  for(Property *pr : std::as_const(Props))
     if(pr->Name != "Export")
       s += "  real "+pr->Name+"; initial "+pr->Name+" = "+pr->Value+";\n";
   return s;
@@ -75,7 +75,7 @@ QString Equation::vhdlCode(int)
 {
   QString s;
   // output all equations
-  for(Property *pr : Props)
+  for(Property *pr : std::as_const(Props))
     if(pr->Name != "Export")
       s += "  constant "+pr->Name+" : time := "+pr->Value+";\n";
   return s;
@@ -112,7 +112,7 @@ QString Equation::getVAExpressions()
         QStringList tokens;
         spicecompat::splitEqn(Props.at(i)->Value,tokens);
         vacompat::convert_functions(tokens);
-        s += QStringLiteral("%1=%2;\n").arg(Props.at(i)->Name).arg(tokens.join(""));
+        s += QStringLiteral("%1=%2;\n").arg(Props.at(i)->Name, tokens.join(""));
     }
     return s;
 }
@@ -156,7 +156,7 @@ QString Equation::getExpression(spicecompat::SpiceDialect dialect /* = spicecomp
         }
 
         if (!spicecompat::containNodes(tokens,ng_vars)) {
-            s += QStringLiteral(".PARAM %1=%2\n").arg(Props.at(i)->Name).arg(eqn);
+            s += QStringLiteral(".PARAM %1=%2\n").arg(Props.at(i)->Name, eqn);
         }
     }
     return s;
@@ -194,7 +194,7 @@ QString Equation::getEquations(QString sim, QStringList &dep_vars)
             if ( used_sim.toLower() == "tran" ) used_sim = "tr";
             if ( (sim.startsWith(used_sim.toLower())) || (used_sim=="all") ) {
                 eqn = tokens.join("");
-                s += QStringLiteral("let %1=%2\n").arg(Props.at(i)->Name).arg(eqn);
+                s += QStringLiteral("let %1=%2\n").arg(Props.at(i)->Name, eqn);
                 dep_vars.append(Props.at(i)->Name);
             }
         }
@@ -224,7 +224,7 @@ QString Equation::getNgspiceScript()
         eqn = tokens.join("");
 
         if (!spicecompat::containNodes(tokens,ng_vars)) {
-            s += QStringLiteral("let %1=%2\n").arg(Props.at(i)->Name).arg(eqn);
+            s += QStringLiteral("let %1=%2\n").arg(Props.at(i)->Name, eqn);
         }
     }
     return s;
@@ -255,7 +255,7 @@ void Equation::getNgnutmegVars(QStringList &vars, QStringList &sims)
             }
         }
     }
-    for (const QString& var : vars) {
+    for (const QString& var : std::as_const(vars)) {
         QString sim;
         int idx = vars.indexOf(var);
         if (idx>=0) sim = sims.at(idx);
@@ -263,7 +263,7 @@ void Equation::getNgnutmegVars(QStringList &vars, QStringList &sims)
             QString eqn = getProperty(var)->Value;
             QStringList tokens;
             spicecompat::splitEqn(eqn,tokens);
-            for (const QString& tok : tokens) {
+            for (const QString& tok : std::as_const(tokens)) {
                 int idx1 = vars.indexOf(tok);
                 if ((idx1>=0)&&(sims[idx1]!="all")) sims[idx]=sims[idx1];
             }

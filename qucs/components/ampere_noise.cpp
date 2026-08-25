@@ -97,11 +97,11 @@ QString Ampere_noise::va_code()
 
     if ( e == "0" ) 
     {
-       s += QStringLiteral("%1 <+ white_noise(%2,\"shot\" );\n").arg(Ipm).arg(u);
+       s += QStringLiteral("%1 <+ white_noise(%2,\"shot\" );\n").arg(Ipm, u);
     }
     else 
     {
-	  s += QStringLiteral("%1 <+ flicker_noise(%2, %3, \"flicker\" );\n" ).arg(Ipm).arg(u).arg(e);
+          s += QStringLiteral("%1 <+ flicker_noise(%2, %3, \"flicker\" );\n" ).arg(Ipm, u, e);
     }
 
     return s;

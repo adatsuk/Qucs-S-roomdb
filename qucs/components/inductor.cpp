@@ -63,8 +63,7 @@ QString Inductor::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecomp
 {
     QString s = spicecompat::check_refdes(Name,SpiceModel);
 
-    s += QStringLiteral(" %1 %2 ").arg(Ports.at(0)->Connection->Name)
-            .arg(Ports.at(1)->Connection->Name); // output source nodes
+    s += QStringLiteral(" %1 %2 ").arg(Ports.at(0)->Connection->Name, Ports.at(1)->Connection->Name); // output source nodes
     s.replace(" gnd ", " 0 ");
 
     s += " "+spicecompat::normalize_value(Props.at(0)->Value) + " ";
@@ -91,7 +90,7 @@ QString Inductor::va_code()
     QString s = "";
     QString Vpm = vacompat::normalize_voltage(plus,minus,true);
     QString Ipm = vacompat::normalize_current(plus,minus);
-    s += QStringLiteral("%1  <+ ddt( %2 *  %3  );\n").arg(Vpm).arg(Ipm).arg(val);
+    s += QStringLiteral("%1  <+ ddt( %2 *  %3  );\n").arg(Vpm, Ipm, val);
     return s;
 
 }

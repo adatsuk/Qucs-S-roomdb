@@ -42,7 +42,7 @@ Relais::Relais()
 		QObject::tr("simulation temperature in degree Celsius")));
   Props.append(new Property("Type", "SPST", true,
                             QObject::tr("Switch type)") + "[SPST,SPDT]"));
-  createSymbol();
+  Relais::createSymbol();
 }
 
 void Relais::createSymbol()
@@ -128,16 +128,16 @@ QString Relais::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
       QList<int> seq; // nodes sequence
       seq<<1<<2<<0<<3;
       // output all node names
-      for (int i : seq) {
+      for (int i : std::as_const(seq)) {
         QString nam = spicecompat::normalize_node_name(Ports.at(i)->Connection->Name);
         s += " "+ nam;   // node names
       }
       s += " " + model + " OFF\n";
 
       if (dialect == spicecompat::SPICEXyce) {
-        s += QStringLiteral(".MODEL %1 vswitch von=%2 voff=%3 ron=%4 roff=%5 \n").arg(model).arg(Vt).arg(Vt-Vh).arg(Ron).arg(Roff);
+        s += QStringLiteral(".MODEL %1 vswitch von=%2 voff=%3 ron=%4 roff=%5 \n").arg(model).arg(Vt).arg(Vt-Vh).arg(Ron, Roff);
       } else {
-        s += QStringLiteral(".MODEL %1 sw vt=%2 vh=%3 ron=%4 roff=%5 \n").arg(model).arg(Vt).arg(Vh).arg(Ron).arg(Roff);
+        s += QStringLiteral(".MODEL %1 sw vt=%2 vh=%3 ron=%4 roff=%5 \n").arg(model).arg(Vt).arg(Vh).arg(Ron, Roff);
       }
     } else {
       s = "X";
@@ -145,11 +145,11 @@ QString Relais::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
       QList<int> seq; // nodes sequence
       seq<<2<<1<<4<<0<<3;
       // output all node names
-      for (int i : seq) {
+      for (int i : std::as_const(seq)) {
         QString nam = spicecompat::normalize_node_name(Ports.at(i)->Connection->Name);
         s += " "+ nam;   // node names
       }
-      s += QStringLiteral(" spdt vt=%2 vh=%3 ron=%4 roff=%5\n").arg(Vt).arg(Vh).arg(Ron).arg(Roff);
+      s += QStringLiteral(" spdt vt=%2 vh=%3 ron=%4 roff=%5\n").arg(Vt).arg(Vh).arg(Ron, Roff);
     }
 
     return s;

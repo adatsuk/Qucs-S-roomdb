@@ -40,6 +40,11 @@ Graph::Graph(Diagram const* d, const QString& _Line) :
   countY = 0;    // no points in graph
   Thick  = numMode = 0;
   Color  = 0x0000ff;   // blue
+
+  /// Gradient settings initialization @{
+  GradientEnabled   = false;
+  /// @}
+
   Precision  = 3;
   isSelected = false;
   yAxisNo = 0;   // left y axis
@@ -99,7 +104,11 @@ void Graph::paintLines(QPainter* painter) {
       drawArrowSymbols(painter);
       break;
     default:
-      drawLines(painter);
+      if (GradientEnabled) {
+        drawGradientLines(painter);
+      } else {
+        drawLines(painter);
+      }
   }
 }
 
@@ -109,7 +118,9 @@ QString Graph::save()
   QString s = "\t<\""+Var+"\" "+Color.name()+
 	      " "+QString::number(Thick)+" "+QString::number(Precision)+
 	      " "+QString::number(numMode)+" "+QString::number(Style)+
-	      " "+QString::number(yAxisNo)+">";
+          " "+QString::number(yAxisNo)+
+          " "+QString::number(GradientEnabled?1:0)+
+          ">";
 
   for (Marker *pm : std::as_const(Markers))
     s += "\n\t  "+pm->save();
@@ -156,6 +167,13 @@ bool Graph::load(const QString& _s)
   if(n.isEmpty()) return true;   // backward compatible
   yAxisNo = n.toInt(&ok);
   if(!ok) return false;
+
+  n = s.section(' ',7,7);
+  if (n.isEmpty()) {
+    // old files: no gradient info
+    return true;
+  }
+  GradientEnabled = (n.toInt() != 0);
 
   return true;
 }
@@ -261,7 +279,7 @@ Graph* Graph::sameNewOne()
   pg->Color = Color;
   pg->Thick = Thick;
   pg->Style = Style;
-
+  pg->GradientEnabled   = GradientEnabled;
   pg->Precision = Precision;
   pg->numMode   = numMode;
   pg->yAxisNo   = yAxisNo;
@@ -628,4 +646,85 @@ void Graph::drawLines(QPainter* painter) const {
   painter->restore();
 }
 
-// vim:ts=8:sw=2:et
+/// @brief Maps a position to a color, sweeping from blue (low) to red (high)
+/// @param t Normalized position along the sweep [0, 1]
+/// @return Interpolated color
+static QColor interpolateColor(double t) {
+
+  // Ensure t is in range [0, 1]
+  t = std::clamp(t, 0.0, 1.0);
+
+  // Jet-style stops: blue, cyan, green, yellow, red
+  static const QColor stops[] = {
+      QColor(0,   0,   255),
+      QColor(0,   255, 255),
+      QColor(0,   255, 0),
+      QColor(255, 255, 0),
+      QColor(255, 0,   0),
+  };
+  constexpr int n = 5;
+
+  double scaled = t * (n - 1);
+  int    i0 = static_cast<int>(std::floor(scaled));
+  int    i1 = std::min(i0 + 1, n - 1);
+  double frac = scaled - i0;
+
+  const QColor& c0 = stops[i0];
+  const QColor& c1 = stops[i1];
+  return QColor(c0.red()   + frac * (c1.red()   - c0.red()),
+                c0.green() + frac * (c1.green() - c0.green()),
+                c0.blue()  + frac * (c1.blue()  - c0.blue()));
+}
+
+void Graph::drawGradientLines(QPainter* painter) const {
+  painter->save();
+
+  // Find the maximum and the minimum value of the independent variable
+  double fMin =  std::numeric_limits<double>::infinity();
+  double fMax = -std::numeric_limits<double>::infinity();
+  for (const auto& point : *this) {
+    if (!point.isPt()) continue;
+    fMin = std::min(fMin, point.getIndep());
+    fMax = std::max(fMax, point.getIndep());
+  }
+
+  // Guard against single point painting
+  double range = 1;
+  if (fMax > fMin){
+    range = fMax - fMin;
+  }
+
+
+  QPen pen = painter->pen();
+  pen.setJoinStyle(Qt::RoundJoin);
+  pen.setCapStyle(Qt::RoundCap);
+
+  bool drawing_started = false;
+  QPointF segStart; double segStartIndep = 0;
+
+  // Walk the points, drawing one segment at a time with different color, depending on its position
+  for (const auto& point : *this) {
+    if (point.isGraphEnd()) break;
+    if (point.isStrokeEnd()) { drawing_started = false; continue; }
+    if (!point.isPt()) continue;
+
+    if (!drawing_started) {
+      segStart = QPointF(point.getScrX(), point.getScrY());
+      segStartIndep = point.getIndep();
+      drawing_started = true;
+      continue;
+    }
+
+    QPointF segEnd(point.getScrX(), point.getScrY());
+    double  tMid = ((segStartIndep + point.getIndep()) * 0.5 - fMin) / range;
+
+    // Draw segment
+    pen.setColor(interpolateColor(tMid));
+    painter->setPen(pen);
+    painter->drawLine(segStart, segEnd);
+
+    segStart = segEnd;
+    segStartIndep = point.getIndep();
+  }
+  painter->restore();
+}

@@ -208,7 +208,7 @@ void AbstractSpiceKernel::startNetlist(QTextStream &stream, spicecompat::SpiceDi
                 else continue;
                 QString ic = pw->label()->initValue;
                 if (!ic.isEmpty()) {
-                    QString ic_str = QStringLiteral(".IC v(%1)=%2\n").arg(label).arg(ic);
+                    QString ic_str = QStringLiteral(".IC v(%1)=%2\n").arg(label, ic);
                     stream<<ic_str;
                 }
             }
@@ -221,7 +221,7 @@ void AbstractSpiceKernel::startNetlist(QTextStream &stream, spicecompat::SpiceDi
                 else continue;
                 QString ic = pw->label()->initValue;
                 if (!ic.isEmpty()) {
-                    QString ic_str = QStringLiteral(".IC v(%1)=%2\n").arg(label).arg(ic);
+                    QString ic_str = QStringLiteral(".IC v(%1)=%2\n").arg(label, ic);
                     stream<<ic_str;
                 }
             }
@@ -400,7 +400,7 @@ QSet<QString> AbstractSpiceKernel::getActiveLabelledNets(spicecompat::SpiceDiale
         if (pc->isProbe && pc->isActive == COMP_IS_ACTIVE) {
             activeNets.insert(pc->getProbeVariable(dialect));
         }
-        for (Port *pp : pc->Ports) {
+        for (Port *pp : std::as_const(pc->Ports)) {
             insertNodeLabels(activeNets, pp->Connection);
         }
     }
@@ -424,7 +424,7 @@ QSet<QString> AbstractSpiceKernel::getValidNets(spicecompat::SpiceDialect dialec
     // log every discarded net for easier debug
     if (!discardedNets.empty()) {
         qDebug() << "Netlisting: filtering" << discardedNets.size() << "net(s) attached to disabled components.";
-        for (const QString &name : discardedNets) {
+        for (const QString &name : std::as_const(discardedNets)) {
             qDebug() << "    " << name;
         }
     }
@@ -560,7 +560,7 @@ void AbstractSpiceKernel::parseHBOutput(QString ngspice_file, QList<QList<double
                     vars1.removeFirst();
                     vars1.removeFirst();
                     QStringList norm_vars;
-                    for (const QString& v : vars1) { // Normalize variables
+                    for (const QString& v : std::as_const(vars1)) { // Normalize variables
                         QString nv = v;
                         nv.remove(0,3).chop(1); // extract variable between "Re|Im(" and ")"
                         if (!norm_vars.contains(nv))
@@ -616,7 +616,7 @@ void AbstractSpiceKernel::parseFourierOutput(QString ngspice_file, QList<QList<d
             if (lin.contains("Fourier analysis for")) {
                 QStringList tokens = lin.split(sep,Qt::SkipEmptyParts);
                 QString var; // TODO chech
-                for (const QString& var1 : tokens) {
+                for (const QString& var1 : std::as_const(tokens)) {
                     if (var1.contains('(')&&var1.contains(')')) {
                         var = var1;
                         break;
@@ -730,7 +730,7 @@ void AbstractSpiceKernel::parsePZOutput(QString ngspice_file, QList<QList<double
 
         if (lines.count("PZ analysis")>1) ParSwp = true;
 
-        for (const QString& lin : lines) {  // Extract poles
+        for (const QString& lin : std::as_const(lines)) {  // Extract poles
             if (lin.contains(var + "(")) {
                 if (!var_list.contains(var)) {
                     var_list.append(var+"_number");
@@ -806,7 +806,7 @@ void AbstractSpiceKernel::parseDC_OPoutput(QString ngspice_file)
     if (ofile.open(QFile::ReadOnly)) {
         QTextStream ngsp_data(&ofile);
         QStringList lines = ngsp_data.readAll().split("\n");
-        for (const QString& lin : lines) {
+        for (const QString& lin : std::as_const(lines)) {
             if (lin.contains('=')) {
                 QString nod = lin.section('=',0,0).remove(' ');
                 double val = lin.section('=',1,1).toDouble();
@@ -1300,7 +1300,7 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
 {
     if (a_DC_OP_only) { // Don't touch existing datasets when only DC was simulated
         // It's need to show DC bias on schematic only
-        for (const QString& outputfile : a_output_files) {
+        for (const QString& outputfile : std::as_const(a_output_files)) {
             QString full_outfile = a_workdir+QDir::separator()+outputfile;
             if (outputfile.endsWith(".dc_op")) {
                 parseDC_OPoutput(full_outfile);
@@ -1319,7 +1319,7 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
     QString sim,indep;
     QStringList indep_vars;
 
-    for (const QString& ngspice_output_filename : a_output_files) { // For every simulation convert results to Qucs dataset
+    for (const QString& ngspice_output_filename : std::as_const(a_output_files)) { // For every simulation convert results to Qucs dataset
         QList< QList<double> > sim_points;
         QStringList var_list, extra_vars;
         QString swp_var,swp_var2;
@@ -1454,7 +1454,7 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
             }
 
             ds_stream<<QStringLiteral("<indep %1 %2>\n").arg(swp_var).arg(swp_var_val.count());
-            for (const QString& val : swp_var_val) {
+            for (const QString& val : std::as_const(swp_var_val)) {
                 ds_stream<<val<<"\n";
             }
             ds_stream<<"</indep>\n";
@@ -1462,7 +1462,7 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
             else indep += " " + swp_var;
             if (hasDblParSweep) {
                 ds_stream<<QStringLiteral("<indep %1 %2>\n").arg(swp_var2).arg(swp_var2_val.count());
-                for (const QString& val : swp_var2_val) {
+                for (const QString& val : std::as_const(swp_var2_val)) {
                     ds_stream<<val<<"\n";
                 }
                 ds_stream<<"</indep>\n";
@@ -1504,13 +1504,13 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
                 }
                 if (var_list.contains(var2)) {
                   // it is digtial variable
-                  ds_stream<<QStringLiteral("<dep %1 %2>\n").arg(var).arg(var2);
+                  ds_stream<<QStringLiteral("<dep %1 %2>\n").arg(var, var2);
                 } else {
                   // it is scalar
                   if (hasParSweep) {
-                    ds_stream<<QStringLiteral("<dep %1 %2>\n").arg(var).arg(swp_var);
+                    ds_stream<<QStringLiteral("<dep %1 %2>\n").arg(var, swp_var);
                   } else {
-                    ds_stream<<QStringLiteral("<indep %1 %2>\n").arg(var).arg(var_length);
+                    ds_stream<<QStringLiteral("<indep %1 %2>\n").arg(var, var_length);
                     is_scalar = true;
                   }
                 }
@@ -1519,7 +1519,7 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
                 extra_indep = true;
                 ds_stream<<QStringLiteral("<indep %1 %2>\n").arg(var).arg(var_length);
               } else {
-                ds_stream<<QStringLiteral("<dep %1 %2>\n").arg(var_list.at(i)).arg(indep);
+                ds_stream<<QStringLiteral("<dep %1 %2>\n").arg(var_list.at(i), indep);
               }
             }
 
@@ -1583,7 +1583,7 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
  */
 void AbstractSpiceKernel::removeAllSimulatorOutputs()
 {
-    for (const QString& output_filename : a_output_files) {
+    for (const QString& output_filename : std::as_const(a_output_files)) {
         QString full_outfile = a_workdir+QDir::separator()+output_filename;
         QFile::remove(full_outfile);
     }
@@ -1756,6 +1756,8 @@ QString AbstractSpiceKernel::collectSpiceLibs(Schematic* sch)
   QStringList collected_spicelib;
   for(Component *pc : sch->a_DocComps) {
     if (pc->Model == "Sub") {
+      // skip if component is disabled
+      if (pc->isActive != COMP_IS_ACTIVE) continue;
       Schematic *sub = new Schematic(0, ((Subcircuit *)pc)->getSubcircuitFile());
       if(!sub->loadDocument())      // load document if possible
       {
@@ -1795,7 +1797,7 @@ QStringList AbstractSpiceKernel::collectSpiceLibraryFiles(Schematic *sch)
     } else {
       new_libs = pc->getSpiceLibraryFiles();
     }
-    for (const auto&lib: new_libs) {
+    for (const auto&lib: std::as_const(new_libs)) {
       if (!collected_spicelib.contains(lib)) {
         collected_spicelib.append(lib);
       }

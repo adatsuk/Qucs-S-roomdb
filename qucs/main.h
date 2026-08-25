@@ -61,6 +61,7 @@ struct tQucsSettings {
   QString SpiceLibDir;
   QString OctaveDir;  // m-files location
   QString ExamplesDir;
+  QString SvgGalleryDir;
   QString DocDir;
 
   unsigned int NodeWiring;

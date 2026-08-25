@@ -72,19 +72,19 @@ QString SpiceSENS::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecom
         QString step = spicecompat::normalize_value(Props.at(4)->Value);
         QString output = "spice4qucs." + Name.toLower() + ".ngspice.sens.dc.prn";
         s += QStringLiteral("echo \"Start\">%1\n").arg(output);
-        s += QStringLiteral("let %1_start=%2\n").arg(sweepvar).arg(start);
+        s += QStringLiteral("let %1_start=%2\n").arg(sweepvar, start);
         s += QStringLiteral("let %1_sweep=%1_start\n").arg(sweepvar);
-        s += QStringLiteral("let %1_step=%2\n").arg(sweepvar).arg(step);
-        s += QStringLiteral("let %1_stop=%2\n").arg(sweepvar).arg(stop);
+        s += QStringLiteral("let %1_step=%2\n").arg(sweepvar, step);
+        s += QStringLiteral("let %1_stop=%2\n").arg(sweepvar, stop);
         s += QStringLiteral("while %1_sweep le %1_stop\n").arg(sweepvar);
         if (sweepvar.compare("temp",Qt::CaseInsensitive)) {
-            s += QStringLiteral("alter %1 = %2_sweep\n").arg(par).arg(sweepvar);
+            s += QStringLiteral("alter %1 = %2_sweep\n").arg(par, sweepvar);
         } else {
-            s += QStringLiteral("set %1 = $&%2_sweep\n").arg(par).arg(sweepvar);
+            s += QStringLiteral("set %1 = $&%2_sweep\n").arg(par, sweepvar);
         }
         s += QStringLiteral("sens %1\n").arg(Props.at(0)->Value);
         s += QStringLiteral("echo \"Sens analysis\">>%1\n").arg(output);
-        s += QStringLiteral("print %1_sweep>>%2\nprint all>>%2\n").arg(sweepvar).arg(output);
+        s += QStringLiteral("print %1_sweep>>%2\nprint all>>%2\n").arg(sweepvar, output);
         s += QStringLiteral("let %1_sweep = %1_sweep + %1_step\nend\n").arg(sweepvar);
 
     }

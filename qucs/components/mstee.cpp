@@ -55,7 +55,7 @@ MStee::MStee()
 	QObject::tr("show port numbers in symbol or not")+
 	" [showNumbers, noNumbers]"));
 
-  createSymbol();
+  MStee::createSymbol();
 }
 
 MStee::~MStee()

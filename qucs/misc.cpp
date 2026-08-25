@@ -212,7 +212,7 @@ void misc::str2num(const QString& s_, double& Number, QString& Unit, double& Fac
       i = j;
     }
 
-  Number = str.left(i).toDouble();
+  Number = QStringView(str).left(i).toDouble();
   Unit   = str.mid(i).trimmed();
   if(Unit.length()>0)
   {
@@ -299,7 +299,7 @@ void misc::convert2Unicode(QString& Text)
   unsigned short ch;
   while((i=Text.indexOf("\\x", i)) >= 0) {
     n = Text.mid(i, 6);
-    ch = n.mid(2).toUShort(&ok, 16);
+    ch = QStringView(n).mid(2).toUShort(&ok, 16);
     if(ok)  Text.replace(n, QChar(ch));
     i++;
   }
@@ -346,7 +346,7 @@ QString misc::properAbsFileName(const QString& filename, Schematic* sch)
   fileInfo.setFile(QucsSettings.QucsWorkDir.filePath(fName));
   if ( fileInfo.exists() ) return fileInfo.canonicalFilePath();
 
-  for (const QString& path : qucsPathList) {
+  for (const QString& path : std::as_const(qucsPathList)) {
     fileInfo.setFile(QDir(path).filePath(fName));
     if ( fileInfo.exists() ) return fileInfo.canonicalFilePath();
   }
@@ -688,7 +688,7 @@ bool misc::simulatorExists(const QString &exe_file)
     QStringList paths;
     bool found = false;
     if (p != nullptr) paths = QString(p).split(':');
-    for (const auto &pp : paths) {
+    for (const auto &pp : std::as_const(paths)) {
         inf.setFile(pp + QDir::separator() + exe_file);
         if (inf.exists()) {
             found = true;
@@ -707,7 +707,7 @@ QString misc::unwrapExePath(const QString &exe_file)
     QStringList paths;
     QString abs_exe_path = exe_file;
     if (p != nullptr) paths = QString(p).split(':');
-    for (const auto &pp : paths) {
+    for (const auto &pp : std::as_const(paths)) {
         inf.setFile(pp + QDir::separator() + exe_file);
         if (inf.exists()) {
             abs_exe_path = inf.canonicalFilePath();
@@ -722,7 +722,7 @@ void misc::getSymbolPatternsList(QStringList &symbols)
   QString dir_name = QucsSettings.BinDir + "/../share/" QUCS_NAME "/symbols/";
   QDir sym_dir(dir_name);
   QStringList sym_files = sym_dir.entryList(QDir::Files);
-  for (const QString& file : sym_files) {
+  for (const QString& file : std::as_const(sym_files)) {
     QFileInfo inf(file);
     symbols.append(inf.baseName());
   }

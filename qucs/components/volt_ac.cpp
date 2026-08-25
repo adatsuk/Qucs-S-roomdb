@@ -88,7 +88,7 @@ QString Volt_ac::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
     Q_UNUSED(dialect);
 
     QString s = spicecompat::check_refdes(Name,SpiceModel);
-    for (Port *p1 : Ports) {
+    for (Port *p1 : std::as_const(Ports)) {
         QString nam = p1->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -109,7 +109,7 @@ QString Volt_ac::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
     QString TD = spicecompat::normalize_value(getProperty("TD")->Value);
 
     s += QStringLiteral(" DC %1 SIN(%1 %2 %3 %4 %5 %6) AC %7 ACPHASE %8\n")
-            .arg(VO).arg(volts).arg(freq).arg(TD).arg(theta).arg(phase).arg(volts).arg(phase);
+            .arg(VO, volts, freq, TD, theta, phase, volts, phase);
     return s;
 }
 
@@ -118,7 +118,7 @@ QString Volt_ac::netlist()
   QString s = Model+":"+Name;
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " "+p1->Connection->Name;   // node names
 
   // output all properties

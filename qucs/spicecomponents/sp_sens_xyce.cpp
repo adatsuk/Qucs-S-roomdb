@@ -70,8 +70,8 @@ QString SpiceSENS_Xyce::spice_netlist(spicecompat::SpiceDialect dialect /* = spi
         QString step = spicecompat::normalize_value(Props.at(5)->Value);
         s = QStringLiteral(".dc %3 %4 %5 %6\n"
                     ".sens objfunc={%1} param=%2\n"
-                    ".print sens\n").arg(Props.at(0)->Value).arg(Props.at(1)->Value)
-                .arg(Props.at(2)->Value).arg(start).arg(stop).arg(step);
+                    ".print sens\n").arg(Props.at(0)->Value, Props.at(1)->Value,
+                                         Props.at(2)->Value, start, stop, step);
     }
 
     return s;

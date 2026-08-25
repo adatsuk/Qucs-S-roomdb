@@ -174,7 +174,7 @@ void QucsShortcutDialog::fillMenu() {
   // Sort alphabetically
   categories.sort();
 
-  for (const QString &category : qAsConst(categories)) {
+  for (const QString &category : std::as_const(categories)) {
     QListWidgetItem *item = new QListWidgetItem(category);
     menuList->addItem(item);
   }
@@ -421,7 +421,7 @@ void QucsShortcutDialog::slotSearchShortcuts(const QString &text) {
   }
 
   // Otherwise, search all other categories
-  for (const QString &category : qAsConst(allCategories)) {
+  for (const QString &category : std::as_const(allCategories)) {
     if (category == currentCategory) {
       continue; // Already checked
     }
@@ -586,7 +586,7 @@ void QucsShortcutDialog::keyPressEvent(QKeyEvent *event) {
   QList<ShortcutConflict> conflicts = m_manager.findConflicts(newKey);
   if (!conflicts.isEmpty()) {
     QString msg = tr("This shortcut is already used by:\n\n");
-    for (const auto &conflict : qAsConst(conflicts)) {
+    for (const auto &conflict : std::as_const(conflicts)) {
       msg +=
           QString("  • %1: %2\n").arg(conflict.category, conflict.description);
     }

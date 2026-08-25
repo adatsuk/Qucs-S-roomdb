@@ -24,7 +24,7 @@ BJT::BJT()
 {
   // properties obtained from "Basic_BJT" in bjtsub.cpp
   Description = QObject::tr("bipolar junction transistor");
-  createSymbol();
+  BJT::createSymbol();
   tx = x2+4;
   ty = y1+4;
   Model = "_BJT";
@@ -48,7 +48,7 @@ QString BJT::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::S
     QList<int> pin_seq;
     pin_seq<<1<<0<<2; // Pin sequence: CBE
     // output all node names
-    for (int pin : pin_seq) {
+    for (int pin : std::as_const(pin_seq)) {
         QString nam = Ports.at(pin)->Connection->Name;
         if (nam=="gnd") nam = "0";
         s += " "+ nam;   // node names
@@ -66,13 +66,12 @@ QString BJT::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat::S
     if (getProperty("UseGlobTemp")->Value == "yes" || isDialectCDL) {
         s += QStringLiteral(" QMOD_%1 %2=%3\n").arg(Name).arg(isDialectCDL ? "$EA" : "AREA").arg(getProperty("Area")->Value);
     } else {
-        s += QStringLiteral(" QMOD_%1 AREA=%2 TEMP=%3\n").arg(Name).arg(getProperty("Area")->Value)
-            .arg(getProperty("Temp")->Value);
+        s += QStringLiteral(" QMOD_%1 AREA=%2 TEMP=%3\n").arg(Name, getProperty("Area")->Value, getProperty("Temp")->Value);
     }
 
     if (!isDialectCDL)
     {
-        s += QStringLiteral(".MODEL QMOD_%1 %2 (%3)\n").arg(Name).arg(getProperty("Type")->Value).arg(par_str);
+        s += QStringLiteral(".MODEL QMOD_%1 %2 (%3)\n").arg(Name, getProperty("Type")->Value, par_str);
     }
 
     return s;
@@ -141,12 +140,12 @@ QString BJT::netlist()
   QString s = "BJT:"+Name;
 
   // output all node names
-  for (Port *p1 : Ports)
+  for (Port *p1 : std::as_const(Ports))
     s += " "+p1->Connection->Name;   // node names
   s += " "+Ports.at(1)->Connection->Name;  // connect substrate to collector
 
   // output all properties
-  for(const auto& p2 : Props)
+  for(const auto& p2 : std::as_const(Props))
     s += " "+p2->Name+"=\""+p2->Value+"\"";
 
   return s + '\n';

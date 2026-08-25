@@ -44,6 +44,45 @@ void Polyline::draw(QPainter* painter) const {
     painter->drawPolyline(points.data(), points.size());
 }
 
+bool Image::detectSvg(const QByteArray& data) {
+  QByteArray head = data.left(512).trimmed();
+  return head.startsWith("<?xml") || head.startsWith("<svg") || head.contains("<svg");
+}
+
+Image::Image(double _x, double _y, double _w, double _h, const QByteArray& rawData)
+    : x(_x), y(_y), w(_w), h(_h) {
+  if (detectSvg(rawData)) {
+    auto renderer = std::make_unique<QSvgRenderer>(rawData);
+    if (renderer->isValid()) {
+      m_svgRenderer = std::move(renderer);
+      m_isSvg = true;
+      return;
+    }
+    qWarning("qucs::Image: failed to parse embedded SVG data");
+  }
+  if (!m_pixmap.loadFromData(rawData)) {
+    qWarning("qucs::Image: failed to decode embedded image data");
+  }
+}
+
+void Image::draw(QPainter* painter) const {
+  if (m_isSvg && m_svgRenderer && m_svgRenderer->isValid()) {
+    m_svgRenderer->render(painter, QRectF{x, y, w, h});
+  } else if (!m_pixmap.isNull()) {
+    QPixmap scaled = m_pixmap.scaled(QSize(int(w), int(h)),
+                                     Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    painter->drawPixmap(QPointF{x, y}, scaled);
+  }
+}
+
+QSize Image::nativeSize() const {
+  if (m_isSvg && m_svgRenderer && m_svgRenderer->isValid())
+    return m_svgRenderer->defaultSize();
+  if (!m_pixmap.isNull())
+    return m_pixmap.size();
+  return QSize();
+}
+
 } // namespace qucs
 
 void Text::draw(QPainter *painter) const {

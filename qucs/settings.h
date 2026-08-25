@@ -22,7 +22,7 @@ public:
   template<class T>
   T itemDefault(const QString& key)
   {
-    return value(key).value<T>();
+    return m_Defaults[key].value<T>();
   }
 
   /** \brief Store a setting.
@@ -42,7 +42,7 @@ public:
       return value(key).value<T>();
     }
 
-    for (auto alias : m_Aliases[key]) {
+    for (const auto &alias : m_Aliases[key]) {
       if (contains(alias)) {
         // qDebug() << "Found alias: " << alias;
         return value(alias).value<T>();

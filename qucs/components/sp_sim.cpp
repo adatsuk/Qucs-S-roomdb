@@ -176,7 +176,7 @@ QString SP_Sim::getSweepString()
     }
     QString fstart = spicecompat::normalize_value(Props.at(1)->Value); // Start freq.
     QString fstop = spicecompat::normalize_value(Props.at(2)->Value); // Stop freq.
-    s += QStringLiteral("%1 %2").arg(fstart).arg(fstop);
+    s += QStringLiteral("%1 %2").arg(fstart, fstop);
     return s;
 }
 
