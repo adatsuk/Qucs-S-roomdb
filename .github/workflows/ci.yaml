@@ -154,15 +154,13 @@ jobs:
       - name: Verify binary
         run: test -x "$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install/bin/qucs-s"
 
-      - name: Install linuxdeployqt
-        run: bash Qucs-S-coredb/scripts/ci_install_linuxdeployqt.sh
-
       - name: Package portable bundle
         env:
           QT_DIR: /opt/qt/6.5.3/gcc_64
+          BUNDLE_SKIP_LINUXDEPLOYQT: "1"
         run: |
           export CAPNP_ROOT="$GITHUB_WORKSPACE/CommonDB/third_party/capnp-install-linux"
-          sed -i 's/\r$//' Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh
+          sed -i 's/\r$//' Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh Qucs-S-coredb/scripts/bundle_qt_libs_manual.sh
           bash Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh \
             Qucs-S-coredb/dist-install \
             Qucs-S-coredb/qucs-s-ubuntu24-bundle.tar.gz \

@@ -41,22 +41,24 @@ if command -v patchelf >/dev/null 2>&1; then
     patchelf --set-rpath '$ORIGIN/lib' "$STAGE/qucs-s" || true
 fi
 
-if command -v linuxdeployqt >/dev/null 2>&1; then
-    linuxdeployqt "$STAGE/qucs-s" \
+bundle_manual() {
+    QMAKE="${QT_DIR}/bin/qmake" bash "$(dirname "$0")/bundle_qt_libs_manual.sh" "$STAGE/qucs-s" "$STAGE"
+}
+
+if [[ "${BUNDLE_SKIP_LINUXDEPLOYQT:-}" == "1" ]]; then
+    bundle_manual
+elif command -v linuxdeployqt >/dev/null 2>&1; then
+    if ! linuxdeployqt "$STAGE/qucs-s" \
       -bundle-non-qt-libs -always-overwrite -no-translations \
       -no-plugins \
       -extra-plugins=platforms,imageformats,iconengines,styles \
-      -qmake="${QT_DIR}/bin/qmake"
-else
-    echo "WARNING: linuxdeployqt not found; copying Qt libs via ldd."
-    mkdir -p "$STAGE/lib"
-    while IFS= read -r lib; do
-        [[ -n "$lib" && -f "$lib" ]] || continue
-        cp -Ln "$lib" "$STAGE/lib/" 2>/dev/null || cp -L "$lib" "$STAGE/lib/" || true
-    done < <(ldd "$STAGE/qucs-s" | awk '/=>/ {print $3}' | grep -v '^(/lib|/usr/lib)' || true)
-    if [[ -d "$QT_DIR/plugins" ]]; then
-        cp -a "$QT_DIR/plugins" "$STAGE/"
+      -qmake="${QT_DIR}/bin/qmake"; then
+        echo "linuxdeployqt failed; falling back to manual Qt bundling." >&2
+        bundle_manual
     fi
+else
+    echo "WARNING: linuxdeployqt not found; using manual Qt bundling."
+    bundle_manual
 fi
 
 cp "$STAGE/qucs-s" "$DIST/bin/qucs-s"
