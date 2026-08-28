@@ -94,16 +94,9 @@ void scaleCoordinateFields(QStringList &fields, const QList<int> &indices, qint6
 
 } // namespace
 
-qint64 normalizeSchCoordinatesForDisplay(const QString &schPath)
+qint64 normalizeSchCoordinatesInMemory(QString &schContent)
 {
-    QFile file(schPath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return 1;
-    }
-
-    const QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
-    file.close();
-
+    const QStringList lines = schContent.split(QLatin1Char('\n'));
     enum class Section { None, Components, Wires, Properties };
     Section section = Section::None;
     qint64 maxAbs = 0;
@@ -213,27 +206,39 @@ qint64 normalizeSchCoordinatesForDisplay(const QString &schPath)
         normalized.append(line);
     }
 
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        return 1;
-    }
-    file.write(normalized.join(QStringLiteral("\n")).toUtf8());
+    schContent = normalized.join(QStringLiteral("\n"));
     return divisor;
 }
 
-void denormalizeSchCoordinates(const QString &schPath, qint64 divisor)
+qint64 normalizeSchCoordinatesForDisplay(const QString &schPath)
+{
+    QFile file(schPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return 1;
+    }
+
+    QString schContent = QString::fromUtf8(file.readAll());
+    file.close();
+
+    const qint64 divisor = normalizeSchCoordinatesInMemory(schContent);
+    if (divisor <= 1) {
+        return 1;
+    }
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        return 1;
+    }
+    file.write(schContent.toUtf8());
+    return divisor;
+}
+
+void denormalizeSchCoordinatesInMemory(QString &schContent, qint64 divisor)
 {
     if (divisor <= 1) {
         return;
     }
 
-    QFile file(schPath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return;
-    }
-
-    const QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
-    file.close();
-
+    const QStringList lines = schContent.split(QLatin1Char('\n'));
     enum class Section { None, Components, Wires };
     Section section = Section::None;
     QStringList normalized;
@@ -280,10 +285,28 @@ void denormalizeSchCoordinates(const QString &schPath, qint64 divisor)
         normalized.append(line);
     }
 
+    schContent = normalized.join(QStringLiteral("\n"));
+}
+
+void denormalizeSchCoordinates(const QString &schPath, qint64 divisor)
+{
+    if (divisor <= 1) {
+        return;
+    }
+
+    QFile file(schPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+
+    QString schContent = QString::fromUtf8(file.readAll());
+    file.close();
+    denormalizeSchCoordinatesInMemory(schContent, divisor);
+
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         return;
     }
-    file.write(normalized.join(QStringLiteral("\n")).toUtf8());
+    file.write(schContent.toUtf8());
 }
 
 bool isCoreViewPath(const QString &path)
@@ -465,6 +488,88 @@ IoResult exportCoreViewToFile(const QString &corePath, const QString &schPath)
         return exportCoreSymbolToSchFile(corePath, schPath);
     }
     return exportCoreToSchFile(corePath, schPath);
+}
+
+IoResult exportCoreViewToString(const QString &corePath, QString &schText)
+{
+    IoResult result;
+    try {
+        const core::Database db = core::Database::loadFromFile(corePath.toStdString());
+        const QString cellName = cellNameFromCorePath(corePath);
+        if (cellName.isEmpty()) {
+            result.message = QObject::tr("Failed to determine cell name from CORE file.");
+            return result;
+        }
+
+        const core::Cell *cell = db.lib().findCell(cellName.toStdString());
+        const std::string exportCellName =
+            cell ? cellName.toStdString() : db.lib().cells().empty() ? std::string() : db.lib().cells().front().name();
+        if (exportCellName.empty()) {
+            result.message = QObject::tr("CORE file contains no cells.");
+            return result;
+        }
+
+        core::QucsExporter exporter(exporterOptionsFromEnvironment());
+        const std::string text = isCoreSymbolPath(corePath)
+                                     ? exporter.exportSymbolCellToString(db, exportCellName)
+                                     : exporter.exportCellToString(db, exportCellName);
+        for (const std::string &warning : exporter.warnings()) {
+            qWarning() << "CORE export warning:" << QString::fromStdString(warning);
+        }
+        if (!exporter.errors().empty()) {
+            result.message = QString::fromStdString(exporter.errors().front());
+            return result;
+        }
+        if (text.empty()) {
+            result.message = QObject::tr("CORE export produced empty schematic data.");
+            return result;
+        }
+
+        schText = QString::fromStdString(text);
+        result.ok = true;
+        return result;
+    } catch (const std::exception &ex) {
+        result.message = QString::fromStdString(ex.what());
+        return result;
+    }
+}
+
+IoResult importSchStringToCore(const QString &schText, const QString &corePath)
+{
+    IoResult result;
+    try {
+        core::QucsImporter::Options opts;
+        opts.libName = "qucs_s";
+        opts.cellName = cellNameFromCorePath(corePath).toStdString();
+        core::QucsImporter importer(opts);
+        core::Database db = importer.importText(schText.toStdString(), opts.cellName);
+        for (const std::string &warning : importer.warnings()) {
+            qWarning() << "CORE import warning:" << QString::fromStdString(warning);
+        }
+        if (!importer.errors().empty()) {
+            result.message = QString::fromStdString(importer.errors().front());
+            return result;
+        }
+
+        const core::ParsedCorePath parsed = core::parseCoreFilePath(corePath.toStdString());
+        const core::ViewType viewType =
+            parsed.valid ? parsed.view : isCoreSymbolPath(corePath) ? core::ViewType::Symbol : core::ViewType::Schematic;
+
+        db.setGenerator("CORE qucs_s");
+        db.setTechnology("qucs");
+        db.saveToFile(corePath.toStdString(), viewType);
+
+        if (!QFileInfo::exists(corePath)) {
+            result.message = QObject::tr("CORE save did not create an output file.");
+            return result;
+        }
+
+        result.ok = true;
+        return result;
+    } catch (const std::exception &ex) {
+        result.message = QString::fromStdString(ex.what());
+        return result;
+    }
 }
 
 IoResult importSchFileToCore(const QString &schPath, const QString &corePath)

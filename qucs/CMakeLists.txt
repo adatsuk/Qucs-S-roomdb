@@ -179,8 +179,8 @@ wire_planner.h
 )
 
 if(QUCS_ENABLE_CORE)
-  list(APPEND QUCS_SRCS core_schematic_io.cpp core_primitive_symbol.cpp)
-  list(APPEND QUCS_HDRS core_schematic_io.h core_primitive_symbol.h)
+  list(APPEND QUCS_SRCS core_schematic_io.cpp core_primitive_symbol.cpp core_block_mapper.cpp)
+  list(APPEND QUCS_HDRS core_schematic_io.h core_primitive_symbol.h core_block_mapper.h)
 endif()
 
 #

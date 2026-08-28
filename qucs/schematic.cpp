@@ -29,14 +29,14 @@
 #include "wire.h"
 #include "paintings/paintings.h"
 #include "schematic.h"
-#include "settings.h"
-#include "textdoc.h"
-
-#include "misc.h"
 
 #ifdef QUCS_ENABLE_CORE
 #include "core_schematic_io.h"
 #endif
+#include "settings.h"
+#include "textdoc.h"
+
+#include "misc.h"
 
 // just dummies for empty lists
 std::list<Wire*> SymbolWires;
@@ -203,7 +203,12 @@ void Schematic::becomeCurrent(bool update)
         // contain *only* a symbol definition). If we're dealing with
         // symbol file, then there is no need to create a subcircuit
         // symbol, a symbol is already there.
-        if (!a_DocName.endsWith(".sym") && createSubcircuitSymbol()) {
+        const bool symbolOnlyDocument = a_isSymbolOnly || a_DocName.endsWith(".sym")
+#ifdef QUCS_ENABLE_CORE
+            || qucs_core::isCoreSymbolPath(a_DocName)
+#endif
+            ;
+        if (!symbolOnlyDocument && createSubcircuitSymbol()) {
             updateAllBoundingRect();
             setChanged(true, true);
         }

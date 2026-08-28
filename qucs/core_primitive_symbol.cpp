@@ -56,9 +56,17 @@ std::vector<std::string> candidateRefs(const QString &compName, const std::strin
 {
     const std::string comp = compName.toStdString();
     std::vector<std::string> refs = {comp, comp + ".sym"};
-    if (!techLibrary.empty()) {
-        refs.push_back(techLibrary + "/" + comp);
-        refs.push_back(techLibrary + "/" + comp + ".sym");
+    const QStringList techs =
+        QString::fromStdString(techLibrary)
+            .split(QRegularExpression(QStringLiteral("[;:]")), Qt::SkipEmptyParts);
+    for (const QString &tech : techs) {
+        const QString t = tech.trimmed();
+        if (t.isEmpty()) {
+            continue;
+        }
+        const std::string techStd = t.toStdString();
+        refs.push_back(techStd + "/" + comp);
+        refs.push_back(techStd + "/" + comp + ".sym");
     }
     return refs;
 }

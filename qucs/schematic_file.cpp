@@ -47,7 +47,8 @@
 
 #ifdef QUCS_ENABLE_CORE
 #include "core_schematic_io.h"
-#include <QUuid>
+#include "core_block_mapper.h"
+#include <QBuffer>
 #endif
 
 // Here the subcircuits, SPICE components etc are collected. It must be
@@ -667,30 +668,10 @@ int Schematic::saveDocument()
 {
 #ifdef QUCS_ENABLE_CORE
   if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
-    const QString tempPath =
-        QDir::temp().filePath(QStringLiteral("qucs_core_%1.sch").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
-    QFile::remove(tempPath);
-
-    const QString corePath = a_DocName;
-    qucs_core::g_coreBridgeActive = true;
-    a_DocName = tempPath;
-    const int saveResult = saveDocument();
-    a_DocName = corePath;
-    qucs_core::g_coreBridgeActive = false;
-    if (saveResult < 0) {
-      QFile::remove(tempPath);
-      return saveResult;
-    }
-
-    if (a_coreCoordDivisor > 1) {
-      qucs_core::denormalizeSchCoordinates(tempPath, a_coreCoordDivisor);
-    }
-
-    const qucs_core::IoResult imported = qucs_core::importSchFileToCore(tempPath, corePath);
-    QFile::remove(tempPath);
-    if (!imported.ok) {
+    const qucs_core::IoResult saved = qucs_core::saveSchematicToCoreFileDirect(this, a_DocName);
+    if (!saved.ok) {
       QMessageBox::critical(nullptr, QObject::tr("Error"),
-                            QObject::tr("Cannot save CORE file:\n%1").arg(imported.message));
+                            QObject::tr("Cannot save CORE file:\n%1").arg(saved.message));
       return -1;
     }
     return 0;
@@ -1219,34 +1200,13 @@ bool Schematic::loadDocument()
 {
 #ifdef QUCS_ENABLE_CORE
   if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
-    const QString tempPath =
-        QDir::temp().filePath(QStringLiteral("qucs_core_%1.sch").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
-    QFile::remove(tempPath);
-
-    const qucs_core::IoResult exported = qucs_core::exportCoreViewToFile(a_DocName, tempPath);
-    if (!exported.ok) {
+    const qucs_core::IoResult loaded = qucs_core::loadCoreFileDirect(a_DocName, this);
+    if (!loaded.ok) {
       QMessageBox::critical(nullptr, QObject::tr("Error"),
-                            QObject::tr("Cannot load CORE file:\n%1").arg(exported.message));
+                            QObject::tr("Cannot load CORE file:\n%1").arg(loaded.message));
       return false;
     }
-
-    const qint64 coordDivisor = qucs_core::isCoreSymbolPath(a_DocName)
-                                    ? 1
-                                    : qucs_core::normalizeSchCoordinatesForDisplay(tempPath);
-
-    const QString corePath = a_DocName;
-    qucs_core::g_coreBridgeActive = true;
-    a_DocName = tempPath;
-    const bool ok = loadDocument();
-    a_DocName = corePath;
-    setFileInfo(corePath);
-    setName(corePath);
-    qucs_core::g_coreBridgeActive = false;
-    QFile::remove(tempPath);
-    if (ok) {
-      a_coreCoordDivisor = coordDivisor;
-    }
-    return ok;
+    return true;
   }
 #endif
 
@@ -1346,6 +1306,165 @@ bool Schematic::loadDocument()
   file.close();
   return true;
 }
+
+#ifdef QUCS_ENABLE_CORE
+bool Schematic::loadDocumentFromText(const QString &text)
+{
+  QString content = text;
+  QTextStream stream(&content, QIODevice::ReadOnly);
+
+  QString Line;
+  do {
+    if(stream.atEnd()) {
+      return true;
+    }
+
+    Line = stream.readLine();
+  } while(Line.isEmpty());
+
+  if(Line.left(16) != "<Qucs Schematic ") {
+    QMessageBox::critical(nullptr, QObject::tr("Error"),
+    QObject::tr("Wrong document type: ")+a_DocName);
+    return false;
+  }
+
+  Line = Line.mid(16, Line.length()-17);
+  if(!misc::checkVersion(Line)) {
+    QMessageBox::StandardButton result;
+    result = QMessageBox::warning(nullptr,
+                                  QObject::tr("Warning"),
+                                  QObject::tr("Wrong document version \n") +
+                                              a_DocName + "\n" +
+                                  QObject::tr("Try to open it anyway?"),
+                                  QMessageBox::Yes|QMessageBox::No);
+
+    if (result==QMessageBox::No) {
+        return false;
+    }
+  }
+
+  while(!stream.atEnd()) {
+    Line = stream.readLine();
+    Line = Line.trimmed();
+    if(Line.isEmpty()) continue;
+
+    if(Line == "<Symbol>") {
+      if (!loadPaintings(&stream, &a_SymbolPaints)) {
+        return false;
+      }
+    }
+    else
+    if(Line == "<Properties>") {
+      if(!loadProperties(&stream)) { return false; } }
+    else
+    if(Line == "<Components>") {
+      if(!loadComponents(&stream)) { return false; } }
+    else
+    if(Line == "<Wires>") {
+      if(!loadWires(&stream)) { return false; } }
+    else
+    if(Line == "<Diagrams>") {
+      if (!loadDiagrams(&stream, &a_DocDiags)) { return false; }
+    }
+    else
+    if(Line == "<Paintings>") {
+      if (!loadPaintings(&stream, &a_DocPaints)) { return false; }
+    }
+    else {
+       qDebug() << Line;
+       QMessageBox::critical(nullptr, QObject::tr("Error"),
+      QObject::tr("File Format Error:\nUnknown field!"));
+      return false;
+    }
+  }
+
+  return true;
+}
+
+int Schematic::saveDocumentToText(QString &out)
+{
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  if (!buffer.open(QIODevice::WriteOnly)) {
+    return -1;
+  }
+
+  QTextStream stream(&buffer);
+  stream << "<Qucs Schematic " << PACKAGE_VERSION << ">\n";
+
+  if (qucs_core::isCoreSymbolPath(a_DocName)) {
+      stream << "<Symbol>\n";
+      for(auto* pp : a_SymbolPaints) {
+          stream << "  <" << pp->save() << ">\n";
+      }
+      stream << "</Symbol>\n";
+      out = QString::fromUtf8(bytes);
+      return 0;
+  }
+
+  stream << "<Properties>\n";
+  if(a_symbolMode) {
+    stream << "  <View=" << a_tmpViewX1<<","<<a_tmpViewY1<<","
+      << a_tmpViewX2<<","<<a_tmpViewY2<< ",";
+    stream <<a_tmpScale<<","<<a_tmpPosX<<","<<a_tmpPosY << ">\n";
+  }
+  else {
+    stream << "  <View=" << a_ViewX1<<","<<a_ViewY1<<","
+      << a_ViewX2<<","<<a_ViewY2<< ",";
+    stream << a_Scale <<","<<contentsX()<<","<<contentsY() << ">\n";
+  }
+  stream << "  <Grid=" << a_GridX<<","<<a_GridY<<","
+    << a_GridOn << ">\n";
+  stream << "  <DataSet=" << a_DataSet << ">\n";
+  stream << "  <DataDisplay=" << a_DataDisplay << ">\n";
+  stream << "  <OpenDisplay=" << a_SimOpenDpl << ">\n";
+  stream << "  <Script=" << a_Script << ">\n";
+  stream << "  <RunScript=" << a_SimRunScript << ">\n";
+  stream << "  <showFrame=" << static_cast<int>(a_showFrame) << ">\n";
+
+  QString t;
+  misc::convert2ASCII(t = a_Frame_Text0);
+  stream << "  <FrameText0=" << t << ">\n";
+  misc::convert2ASCII(t = a_Frame_Text1);
+  stream << "  <FrameText1=" << t << ">\n";
+  misc::convert2ASCII(t = a_Frame_Text2);
+  stream << "  <FrameText2=" << t << ">\n";
+  misc::convert2ASCII(t = a_Frame_Text3);
+  stream << "  <FrameText3=" << t << ">\n";
+  stream << "</Properties>\n";
+
+  stream << "<Symbol>\n";
+  for(auto* pp : a_SymbolPaints)
+    stream << "  <" << pp->save() << ">\n";
+  stream << "</Symbol>\n";
+
+  stream << "<Components>\n";
+  for(Component *pc : a_DocComps)
+    stream << "  " << pc->save() << "\n";
+  stream << "</Components>\n";
+
+  stream << "<Wires>\n";
+  for(Wire *pw : a_DocWires)
+    stream << "  " << pw->save() << "\n";
+
+  for(Node *pn : a_DocNodes)
+    if(pn->hasLabel()) stream << "  " << pn->label()->save() << "\n";
+  stream << "</Wires>\n";
+
+  stream << "<Diagrams>\n";
+  for(Diagram *pd : a_DocDiags)
+    stream << "  " << pd->save() << "\n";
+  stream << "</Diagrams>\n";
+
+  stream << "<Paintings>\n";
+  for(auto* pp : a_DocPaints)
+    stream << "  <" << pp->save() << ">\n";
+  stream << "</Paintings>\n";
+
+  out = QString::fromUtf8(bytes);
+  return 0;
+}
+#endif
 
 // -------------------------------------------------------------
 // Creates a Qucs file format (without document properties) in the returning

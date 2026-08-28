@@ -148,7 +148,8 @@ QucsApp::QucsApp(bool netlist2Console) :
   slotUpdateRecentProjects();
   initCursorMenu();
   setDefaultShortcut();
-  //Module::registerModules ();
+  Module::registerModules();
+  Module::registerDynamicComponents();
 
   // instance of small text search dialog
   SearchDia = new SearchDialog(this);

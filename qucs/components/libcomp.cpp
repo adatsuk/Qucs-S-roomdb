@@ -261,15 +261,20 @@ int LibComp::loadSymbol()
 {
   int z, Result;
   QString FileString, Line;
-  z = loadSection("Symbol", FileString);
 #ifdef QUCS_ENABLE_CORE
-  if (z < 0) {
+  // Prefer CORE/commonLib (and PDK) symbol geometry when attached — pin centers must match
+  // schematic wires stored on CORE/Xschem terminals, not legacy Qucs .lib artwork.
+  {
     QString coreSymbol;
     if (qucs_core::tryLoadCorePrimitiveSymbol(Props.at(1)->Value, coreSymbol)) {
       FileString = coreSymbol;
       z = 0;
+    } else {
+      z = loadSection("Symbol", FileString);
     }
   }
+#else
+  z = loadSection("Symbol", FileString);
 #endif
   if(z < 0) {
     if(z != -7)  return z;

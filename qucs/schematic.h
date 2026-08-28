@@ -28,6 +28,14 @@
 #endif
 
 #include "qucsdoc.h"
+
+#ifdef QUCS_ENABLE_CORE
+namespace qucs_core {
+struct IoResult;
+IoResult loadCoreFileDirect(const QString &corePath, class Schematic *schematic);
+IoResult saveSchematicToCoreFileDirect(class Schematic *schematic, const QString &corePath);
+} // namespace qucs_core
+#endif
 #include "wire_planner.h"
 #include "schematic_selection.h"
 
@@ -545,6 +553,17 @@ public:
   QString createNetlist(QTextStream&, int);
   bool isDigitalCircuit();
   bool loadDocument();
+#ifdef QUCS_ENABLE_CORE
+  bool loadDocumentFromText(const QString &text);
+  int saveDocumentToText(QString &out);
+  bool loadCoreProperties(QTextStream *stream) { return loadProperties(stream); }
+  bool loadCoreDiagrams(QTextStream *stream) { return loadDiagrams(stream, &a_DocDiags); }
+  bool loadCorePaintings(QTextStream *stream, std::list<Painting *> *target) { return loadPaintings(stream, target); }
+  void insertCoreComponent(Component *component) { simpleInsertComponent(component); }
+  void insertCoreWire(Wire *wire) { simpleInsertWire(wire); }
+  void setCoreCoordDivisor(qint64 value) { a_coreCoordDivisor = value; }
+  qint64 coreCoordDivisor() const { return a_coreCoordDivisor; }
+#endif
   void highlightWireLabels (void);
   void clearSignalsAndFileList();
   void clearSignals();
