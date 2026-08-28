@@ -89,3 +89,100 @@ jobs:
         with:
           name: qucs-s-rocky8
           path: Qucs-S-coredb/qucs-s-rocky8-bundle.tar.gz
+
+  build-ubuntu24:
+    name: build-ubuntu24
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout Qucs-S-coredb
+        uses: actions/checkout@v4
+        with:
+          path: Qucs-S-coredb
+
+      - name: Checkout CommonDB
+        uses: actions/checkout@v4
+        with:
+          repository: IHP-GmbH/CommonDB
+          path: CommonDB
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Verify CommonDB checkout
+        run: test -f CommonDB/src/core_paths.h
+
+      - name: Install dependencies
+        run: |
+          sudo bash Qucs-S-coredb/scripts/ci-ubuntu24-deps.sh
+
+      - name: Cache Cap'n Proto (Linux)
+        uses: actions/cache@v4
+        with:
+          path: CommonDB/third_party/capnp-install-linux
+          key: capnp-linux-ubuntu24-v1-${{ hashFiles('CommonDB/scripts/build_capnp_linux.sh') }}
+          restore-keys: |
+            capnp-linux-ubuntu24-v1-
+
+      - name: Bootstrap Cap'n Proto
+        run: |
+          COMMONDB_ROOT="$GITHUB_WORKSPACE/CommonDB"
+          sed -i 's/\r$//' "$COMMONDB_ROOT/scripts/build_capnp_linux.sh"
+          CAPNP_SKIP_CHECK=1 bash "$COMMONDB_ROOT/scripts/build_capnp_linux.sh" \
+            "https://github.com/capnproto/capnproto.git" branch master "" "" \
+            "$COMMONDB_ROOT/third_party/capnproto-linux" \
+            "$COMMONDB_ROOT/third_party/capnp-install-linux"
+
+      - name: Configure and build qucs-s
+        run: |
+          COMMONDB_ROOT="$GITHUB_WORKSPACE/CommonDB"
+          cmake -S Qucs-S-coredb -B Qucs-S-coredb/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install" \
+            -DQUCS_CORE_SOURCE_DIR="$COMMONDB_ROOT" \
+            -DCAPNP_ROOT="$COMMONDB_ROOT/third_party/capnp-install-linux"
+          cmake --build Qucs-S-coredb/build --target qucs-s translations -j"$(nproc)"
+
+      - name: Install qucs-s payload
+        run: |
+          BUILD="Qucs-S-coredb/build"
+          PREFIX="$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install"
+          cmake --install "$BUILD/_deps/commondb-build" --prefix "$PREFIX"
+          cmake --install "$BUILD/qucs" --prefix "$PREFIX"
+          cmake --install "$BUILD/library" --prefix "$PREFIX"
+          cmake --install "$BUILD/translations" --prefix "$PREFIX"
+
+      - name: Verify binary
+        run: test -x "$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install/bin/qucs-s"
+
+      - name: Install linuxdeployqt
+        run: bash Qucs-S-coredb/scripts/ci_install_linuxdeployqt.sh
+
+      - name: Package portable bundle
+        env:
+          QT_DIR: /opt/qt/6.5.3/gcc_64
+        run: |
+          export CAPNP_ROOT="$GITHUB_WORKSPACE/CommonDB/third_party/capnp-install-linux"
+          sed -i 's/\r$//' Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh
+          bash Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh \
+            Qucs-S-coredb/dist-install \
+            Qucs-S-coredb/qucs-s-ubuntu24-bundle.tar.gz \
+            "Ubuntu 24.04"
+
+      - name: Smoke-test bundled binary (headless)
+        run: |
+          set -euxo pipefail
+          tar -xzf Qucs-S-coredb/qucs-s-ubuntu24-bundle.tar.gz -C Qucs-S-coredb
+          if ! timeout 8s xvfb-run -a Qucs-S-coredb/dist-bundle/qucs-s-run.sh -platform offscreen; then
+            status=$?
+            if [[ "${status}" -ne 124 ]]; then
+              echo "Smoke test failed with exit ${status}" >&2
+              exit "${status}"
+            fi
+          fi
+
+      - name: Upload qucs-s bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: qucs-s-ubuntu24
+          path: Qucs-S-coredb/qucs-s-ubuntu24-bundle.tar.gz
+          retention-days: 14
