@@ -7,8 +7,8 @@ QT_INSTALL_ROOT="${QT_INSTALL_ROOT:-/opt/qt}"
 QT_DIR="${QT_INSTALL_ROOT}/${QT_VERSION}/gcc_64"
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y \
+sudo apt-get update
+sudo apt-get install -y \
   build-essential cmake ninja-build git pkg-config curl patchelf \
   flex bison gperf dos2unix \
   python3 python3-pip python3-venv \

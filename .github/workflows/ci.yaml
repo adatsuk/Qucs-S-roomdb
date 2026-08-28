@@ -112,8 +112,7 @@ jobs:
         run: test -f CommonDB/src/core_paths.h
 
       - name: Install dependencies
-        run: |
-          sudo bash Qucs-S-coredb/scripts/ci-ubuntu24-deps.sh
+        run: bash Qucs-S-coredb/scripts/ci-ubuntu24-deps.sh
 
       - name: Cache Cap'n Proto (Linux)
         uses: actions/cache@v4
@@ -133,11 +132,16 @@ jobs:
             "$COMMONDB_ROOT/third_party/capnp-install-linux"
 
       - name: Configure and build qucs-s
+        env:
+          QT_DIR: /opt/qt/6.5.3/gcc_64
         run: |
           COMMONDB_ROOT="$GITHUB_WORKSPACE/CommonDB"
+          export PATH="${QT_DIR}/bin:${PATH}"
           cmake -S Qucs-S-coredb -B Qucs-S-coredb/build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install" \
+            -DCMAKE_PREFIX_PATH="${QT_DIR}" \
+            -DQt6_DIR="${QT_DIR}/lib/cmake/Qt6" \
             -DQUCS_CORE_SOURCE_DIR="$COMMONDB_ROOT" \
             -DCAPNP_ROOT="$COMMONDB_ROOT/third_party/capnp-install-linux"
           cmake --build Qucs-S-coredb/build --target qucs-s translations -j"$(nproc)"
