@@ -21,7 +21,7 @@ apt-get install -y \
   xvfb
 
 if [[ ! -x "${QT_DIR}/bin/qmake" ]]; then
-  python3 -m pip install --break-system-packages --upgrade pip
+  # Do not upgrade distro pip on Ubuntu 24+ (deb-installed pip has no RECORD).
   python3 -m pip install --break-system-packages 'aqtinstall<4'
   python3 -m aqt install-qt linux desktop "${QT_VERSION}" gcc_64 \
     -O "${QT_INSTALL_ROOT}"
