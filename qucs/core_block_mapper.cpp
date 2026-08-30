@@ -21,6 +21,7 @@
 #include <QTextStream>
 
 #include <functional>
+#include <algorithm>
 
 namespace qucs_core {
 namespace {
@@ -218,6 +219,29 @@ IoResult loadCoreFileDirect(const QString &corePath, Schematic *schematic)
                 g_coreBridgeActive = false;
                 result.message = QObject::tr("Failed to load CORE diagrams.");
                 return result;
+            }
+
+            // Dual-tool TBs often lose Diagrams when rebuilt from Components-only CORE.
+            // If a transient controller is present and no diagram exists, inject Cartesian.
+            if (schematic->a_DocDiags.empty()) {
+                const bool hasTran = std::any_of(
+                    schematic->a_DocComps.begin(), schematic->a_DocComps.end(),
+                    [](Component *pc) { return pc && (pc->Model == QLatin1String(".TR") || pc->Model == QLatin1String("TR")); });
+                if (hasTran) {
+                    QString diag =
+                        QStringLiteral(
+                            "<Rect 600 -180 280 200 3 #c0c0c0 1 00 1 0 0.5 1e-06 1 -0.1 0.1 1.3 1 -1 0.2 1 315 0 225 1 0 0 \"\" \"\" \"\">\n"
+                            "\t<\"ngspice/tran.v(vout)\" #0000ff 0 3 0 0 0>\n"
+                            "\t<\"ngspice/tran.v(vin)\" #ff0000 0 3 0 0 0>\n"
+                            "</Rect>\n"
+                            "</>\n");
+                    QTextStream stream(&diag, QIODevice::ReadOnly);
+                    if (!schematic->loadCoreDiagrams(&stream)) {
+                        g_coreBridgeActive = false;
+                        result.message = QObject::tr("Failed to inject default CORE diagram.");
+                        return result;
+                    }
+                }
             }
 
             if (!loadPropertySection(schematic, content->properties(), "section.Paintings", QStringLiteral("<Paintings>"),

@@ -283,9 +283,16 @@ void AbstractSpiceKernel::createSubNetlist(QTextStream &stream, bool lib)
         emit errors(QProcess::FailedToStart);
         return;
     } // Unable to perform spice simulation
+    int fallbackNum = 0;
     for(Component *pc : a_schematic->a_DocComps) {
         if (pc->Model=="Port") {
-            ports.append(qMakePair(pc->Props.first()->Value.toInt(),
+            bool ok = false;
+            int num = pc->Props.first()->Value.toInt(&ok);
+            // CORE/Xschem iopin often stores lab name (Vin) instead of numeric Num.
+            if (!ok || num <= 0) {
+                num = ++fallbackNum;
+            }
+            ports.append(qMakePair(num,
                                    pc->Ports.first()->Connection->Name));
         }
     }

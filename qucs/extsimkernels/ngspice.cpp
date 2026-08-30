@@ -88,7 +88,12 @@ void Ngspice::createNetlist(
         stream<<QStringLiteral(".INCLUDE \"%1\"\n").arg(mathf_inc);
 
     stream<<collectSpiceLibs(a_schematic); // collect libraries on the top of netlist
-    if(!prepareSpiceNetlist(stream)) return; // Unable to perform spice simulation
+    if(!prepareSpiceNetlist(stream)) {
+        if (!a_output.trimmed().isEmpty() && a_console != nullptr) {
+            a_console->insertPlainText(a_output);
+        }
+        return;
+    } // Unable to perform spice simulation
     startNetlist(stream); // output .PARAM and components
 
     if (a_DC_OP_only) {

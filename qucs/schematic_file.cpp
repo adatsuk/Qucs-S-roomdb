@@ -987,6 +987,7 @@ void Schematic::simpleInsertComponent(Component *c)
     pp->Connection = pn;  // connect component node to schematic node
   }
 
+  c->setSchematic(this);
   a_DocComps.push_back(c);
 }
 
@@ -1850,7 +1851,6 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
       SubMap::Iterator it = FileList.find(s);
       if(it != FileList.end())
         continue;   // insert each library subcircuit just one time
-      FileList.insert(s, SubFile("LIB", s));
 
       unsigned whatisit = a_isAnalog?1:(a_isVerilog?4:2);
       if(a_isAnalog) {
@@ -1868,6 +1868,7 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
         arg(pc->Name, pc->Props.at(1)->Value, scfile));
         return false;
       }
+      FileList.insert(s, SubFile("LIB", s));
       continue;
     }
 
@@ -1964,6 +1965,7 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
 bool Schematic::giveNodeNames(QTextStream *stream, int& countInit,
                    QStringList& Collect, QPlainTextEdit *ErrText, int NumPorts)
 {
+  FileList.clear();
   // delete the node names
   for(Node *pn : a_DocNodes) {
     pn->State = 0;

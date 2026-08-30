@@ -2,6 +2,7 @@
 
 #include "core_paths.h"
 #include "database.h"
+#include "primitive_resolver.h"
 #include "qucs_exporter.h"
 #include "qucs_importer.h"
 
@@ -30,18 +31,8 @@ core::QucsExporter::Options exporterOptionsFromEnvironment()
     if (qEnvironmentVariableIsSet("QUCS_PRIMITIVE_LIB")) {
         options.qucsPrimitiveLib = qEnvironmentVariable("QUCS_PRIMITIVE_LIB").toStdString();
     }
-    if (qEnvironmentVariableIsSet("CORE_PRIMITIVE_LIBS")) {
-        const QStringList paths =
-            qEnvironmentVariable("CORE_PRIMITIVE_LIBS").split(QRegularExpression(QStringLiteral("[;:]")),
-                                                              Qt::SkipEmptyParts);
-        for (const QString &path : paths) {
-            const QString trimmed = path.trimmed();
-            if (!trimmed.isEmpty()) {
-                options.primitiveCorePaths.push_back(trimmed.toStdString());
-            }
-        }
-    } else if (qEnvironmentVariableIsSet("CORE_PRIMITIVE_LIB")) {
-        options.primitiveCorePaths.push_back(qEnvironmentVariable("CORE_PRIMITIVE_LIB").toStdString());
+    for (const std::string &path : core::PrimitiveResolver::primitiveCorePathsFromEnvironment()) {
+        options.primitiveCorePaths.push_back(path);
     }
     return options;
 }

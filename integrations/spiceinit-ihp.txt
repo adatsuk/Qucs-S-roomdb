@@ -1,0 +1,5 @@
+* IHP PDK init for Windows ngspice (Qucs-S)
+set ngbehavior=hsa
+set ng_nomodcheck
+* PDK_ROOT must point at IHP-Open-PDK (junction or clone)
+* Models loaded from schematic INCLSCR / .lib, not here.

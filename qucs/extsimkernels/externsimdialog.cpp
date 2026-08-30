@@ -22,6 +22,9 @@
 #include "settings.h"
 #include "externsimdialog.h"
 #include "main.h"
+#ifdef QUCS_ENABLE_CORE
+#include "core_schematic_io.h"
+#endif
 
 ExternSimDialog::ExternSimDialog(Schematic* sch, bool netlist2Console, bool netlist_mode) :
     QDialog(sch),
@@ -212,8 +215,11 @@ void ExternSimDialog::slotProcessOutput()
 
     if ( !a_hasError ) {
         QFileInfo inf(a_schematic->getDocName());
-        //QString qucs_dataset = inf.canonicalPath()+QDir::separator()+inf.baseName()+"_ngspice.dat";
-        QString qucs_dataset = inf.canonicalPath()+QDir::separator()+inf.completeBaseName()+ext;
+        QString datasetBase = inf.completeBaseName();
+#ifdef QUCS_ENABLE_CORE
+        datasetBase = qucs_core::documentBaseName(a_schematic->getDocName());
+#endif
+        QString qucs_dataset = inf.canonicalPath() + QDir::separator() + datasetBase + ext;
         switch (QucsSettings.DefaultSimulator) {
             case spicecompat::simNgspice:
             case spicecompat::simSpiceOpus:

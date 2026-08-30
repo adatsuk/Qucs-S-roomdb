@@ -21,6 +21,8 @@
 #include "node.h"
 #include "extsimkernels/qucs2spice.h"
 #include "extsimkernels/spicecompat.h"
+#include "extsimkernels/abstractspicekernel.h"
+#include "schematic.h"
 
 #ifdef QUCS_ENABLE_CORE
 #include "core_primitive_symbol.h"
@@ -28,6 +30,11 @@
 
 
 #include <QTextStream>
+#include <QPlainTextEdit>
+#include <QMap>
+#include <QFile>
+#include <QDir>
+#include <QFileInfo>
 #include <QDir>
 #include <QRegularExpression>
 #include <QDebug>
@@ -145,13 +152,35 @@ void LibComp::createSymbol()
 }
 
 // ---------------------------------------------------------------------
+// Open "<lib>.lib" from system LibDir or ~/.qucs/user_lib (IHP PDK lives there).
+static bool openQucsLibraryFile(const QString &libName, Schematic *sch, QFile &file)
+{
+  QStringList dirs;
+  dirs << QucsSettings.LibDir;
+  dirs << QucsSettings.qucsWorkspaceDir.absoluteFilePath(QStringLiteral("user_lib"));
+  dirs << QDir::home().absoluteFilePath(QStringLiteral(".qucs/user_lib"));
+
+  const QString base = libName + QStringLiteral(".lib");
+  for (const QString &dir : dirs) {
+    if (dir.trimmed().isEmpty()) {
+      continue;
+    }
+    const QString candidate = misc::properAbsFileName(QDir(dir).absoluteFilePath(base), sch);
+    file.setFileName(candidate);
+    if (file.open(QIODevice::ReadOnly)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------
 // Loads the section with name "Name" from library file into "Section".
 int LibComp::loadSection(const QString& Name, QString& Section,
              QStringList *Includes, QStringList *Attach)
 {
-  QDir Directory(QucsSettings.LibDir);
-  QFile file(misc::properAbsFileName(Directory.absoluteFilePath(Props.at(0)->Value + ".lib"), containingSchematic));
-  if(!file.open(QIODevice::ReadOnly))
+  QFile file;
+  if (!openQucsLibraryFile(Props.at(0)->Value, containingSchematic, file))
     return -1;
 
   QString libDefaultSymbol;
@@ -330,6 +359,98 @@ bool LibComp::createSubNetlist(QTextStream *stream, QStringList &FileList,
   int r = -1;
   QString FileString;
   QStringList Includes;
+
+#ifdef QUCS_ENABLE_CORE
+  // Hierarchical CORE cell (e.g. module_0_foundations/inverter): emit .SUBCKT from schematic.core.
+  if ((type & 8) || (type & 16)) {
+    QString coreSch;
+    QString hint;
+    if (containingSchematic) {
+      hint = containingSchematic->getDocName();
+    }
+    if (Props.size() >= 2
+        && qucs_core::tryResolveCoreSchematic(Props.at(0)->Value, Props.at(1)->Value, coreSch, hint)) {
+      Schematic *d = new Schematic(nullptr, coreSch);
+      if (d->loadDocument()) {
+        for (Component *pc : d->a_DocComps) {
+          if (pc) {
+            pc->setSchematic(d);
+          }
+        }
+        // Align Port Num with symbol pin order (by pin name / lab).
+        QString symSection;
+        QMap<QString, int> pinNameToNum;
+        if (qucs_core::tryLoadCorePrimitiveSymbol(Props.at(1)->Value, symSection)) {
+          const QStringList symLines = symSection.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+          for (const QString &raw : symLines) {
+            QString line = raw.trimmed();
+            if (line.startsWith(QLatin1Char('<'))) {
+              line = line.mid(1);
+            }
+            if (line.endsWith(QLatin1Char('>'))) {
+              line.chop(1);
+            }
+            if (!line.startsWith(QLatin1String(".PortSym")) && !line.startsWith(QLatin1String("PortSym"))) {
+              continue;
+            }
+            // PortSym x y num angle name
+            const QStringList tok = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+            if (tok.size() >= 6) {
+              bool ok = false;
+              const int num = tok.at(3).toInt(&ok);
+              if (ok && num > 0) {
+                pinNameToNum.insert(tok.at(5), num);
+              }
+            }
+          }
+        }
+        for (Component *pc : d->a_DocComps) {
+          if (!pc || pc->Model != QLatin1String("Port") || pc->Props.isEmpty()) {
+            continue;
+          }
+          const QString lab = pc->Props.first()->Value;
+          if (pinNameToNum.contains(lab)) {
+            pc->Props.first()->Value = QString::number(pinNameToNum.value(lab));
+          }
+        }
+
+        // Instance spice_netlist uses createType() as subckt name — match that.
+        const QString subName = createType();
+        d->setDocName(subName);
+        d->setIsAnalog(true);
+        d->setIsVerilog(false);
+
+        QString subText;
+        QTextStream subStream(&subText, QIODevice::WriteOnly);
+        AbstractSpiceKernel kern(d);
+        QStringList incompat;
+        if (!kern.checkSchematic(incompat)) {
+          delete d;
+          return false;
+        }
+        kern.createSubNetlist(subStream, false);
+        delete d;
+
+        // Previously we returned true even when prepareSpiceNetlist failed inside the
+        // kernel and wrote nothing — that produced "unknown subckt" in ngspice.
+        if (!subText.contains(QStringLiteral(".SUBCKT"), Qt::CaseInsensitive)
+            && !subText.contains(QStringLiteral(".subckt"), Qt::CaseInsensitive)) {
+          return false;
+        }
+        if (!subText.contains(subName, Qt::CaseInsensitive)) {
+          return false;
+        }
+        (*stream) << subText;
+        if (!subText.endsWith(QLatin1Char('\n'))) {
+          (*stream) << '\n';
+        }
+        return true;
+      }
+      delete d;
+    }
+  }
+#endif
+
   if(type&1) {
     r = loadSection("Model", FileString, &Includes);
   } else if(type&2) {
@@ -442,7 +563,30 @@ QString LibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
 {
     Q_UNUSED(dialect);
 
-    QString s = SpiceModel + Name + " " + "0"; // connect ground of subckt to circuit ground
+    QString s = SpiceModel + Name;
+#ifdef QUCS_ENABLE_CORE
+    // CORE hierarchical schematics already expose Gnd as a port — do not add library gnd.
+    QString coreSch;
+    QString hint;
+    if (containingSchematic) {
+      hint = containingSchematic->getDocName();
+    }
+    bool coreHier = Props.size() >= 2
+        && qucs_core::tryResolveCoreSchematic(Props.at(0)->Value, Props.at(1)->Value, coreSch, hint);
+    if (!coreHier && Props.size() >= 2 && !hint.trimmed().isEmpty()) {
+      QDir parent = QFileInfo(hint).absoluteDir();
+      if (parent.cdUp()) {
+        const QString candidate = parent.filePath(Props.at(1)->Value + QLatin1Char('/')
+                                                 + Props.at(1)->Value
+                                                 + QStringLiteral(".schematic.core"));
+        coreHier = QFileInfo::exists(candidate);
+      }
+    }
+    if (!coreHier)
+#endif
+    {
+        s += QStringLiteral(" 0"); // connect ground of traditional .lib subckt to circuit ground
+    }
     for (Port *p1 : std::as_const(Ports))
       s += " "  + spicecompat::normalize_node_name(p1->Connection->Name);   // node names
     s += " " + createType();
