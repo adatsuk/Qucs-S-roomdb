@@ -436,7 +436,13 @@ QSet<QString> AbstractSpiceKernel::getValidNets(spicecompat::SpiceDialect dialec
         }
     }
     // intersection between all and activeNets
-    return allNets & activeNets;
+    QSet<QString> validNets = allNets & activeNets;
+    for (const QString &name : std::as_const(validNets)) {
+        if (spicecompat::isGroundNetName(name)) {
+            validNets.remove(name);
+        }
+    }
+    return validNets;
 }
 
 /*!
@@ -1409,6 +1415,10 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
 
             parseSTEPOutput(full_outfile,sim_points,var_list,isComplex, extra_vars, extra_vars_dims);
         } else {
+            if (!QFile::exists(full_outfile)) {
+                qWarning() << "convertToQucsData: missing simulator output" << full_outfile;
+                continue;
+            }
             int OutType = checkRawOutupt(full_outfile,swp_var_val);
             bool hasSwp = false;
             switch (OutType) {
@@ -1568,6 +1578,8 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
         }
     }
 
+    const bool gotData = ds_str.contains(QStringLiteral("<dep "));
+
     QFile dataset(qucs_dataset);
     if (dataset.open(QFile::WriteOnly)) {
         QTextStream ts(&dataset);
@@ -1579,8 +1591,18 @@ void AbstractSpiceKernel::convertToQucsData(const QString &qucs_dataset)
                              tr("Failed to create dataset file ") + qucs_dataset + "\n"
                              + tr("Check write permission of the directory ") + inf.path());
     }
+    if (!gotData) {
+        qWarning() << "convertToQucsData: no variables written to" << qucs_dataset
+                   << "from outputs" << a_output_files << "in" << a_workdir;
+        for (const QString &output_filename : std::as_const(a_output_files)) {
+            const QString full_outfile = a_workdir + QDir::separator() + output_filename;
+            qWarning() << "  output" << full_outfile << "exists:" << QFile::exists(full_outfile);
+        }
+    }
 #ifdef NDEBUG
-    removeAllSimulatorOutputs();
+    if (gotData) {
+        removeAllSimulatorOutputs();
+    }
 #endif
 }
 
@@ -1765,7 +1787,11 @@ QString AbstractSpiceKernel::collectSpiceLibs(Schematic* sch)
     if (pc->Model == "Sub") {
       // skip if component is disabled
       if (pc->isActive != COMP_IS_ACTIVE) continue;
-      Schematic *sub = new Schematic(0, ((Subcircuit *)pc)->getSubcircuitFile());
+      const QString subFile = ((Subcircuit *)pc)->getSubcircuitFile();
+      if (subFile.isEmpty() || !QFileInfo(subFile).isFile()) {
+        continue;
+      }
+      Schematic *sub = new Schematic(0, subFile);
       if(!sub->loadDocument())      // load document if possible
       {
         delete sub;
@@ -1793,7 +1819,11 @@ QStringList AbstractSpiceKernel::collectSpiceLibraryFiles(Schematic *sch)
   for(Component *pc : sch->a_DocComps) {
     QStringList new_libs;
     if (pc->Model == "Sub") {
-      Schematic *sub = new Schematic(nullptr, ((Subcircuit *)pc)->getSubcircuitFile());
+      const QString subFile = ((Subcircuit *)pc)->getSubcircuitFile();
+      if (subFile.isEmpty() || !QFileInfo(subFile).isFile()) {
+        continue;
+      }
+      Schematic *sub = new Schematic(nullptr, subFile);
       if(!sub->loadDocument())      // load document if possible
       {
         delete sub;

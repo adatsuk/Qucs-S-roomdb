@@ -19,9 +19,11 @@ if exist "%USERPROFILE%\Documents\VBIC_cryo\tools\ngspice\Spice64\bin\ngspice_co
   set "PATH=C:\Spice64\bin;%PATH%"
 )
 
-rem IHP Open PDK models (Windows copy preferred; WSL UNC fallback).
+rem IHP Open PDK models (prefer C:\Work\IHP, then Documents copy, then WSL UNC).
 if not defined PDK_ROOT (
-  if exist "%USERPROFILE%\Documents\IHP-Open-PDK\ihp-sg13g2\libs.tech\ngspice\models" (
+  if exist "C:\Work\IHP\ihp-sg13g2\libs.tech\ngspice\models" (
+    set "PDK_ROOT=C:\Work\IHP"
+  ) else if exist "%USERPROFILE%\Documents\IHP-Open-PDK\ihp-sg13g2\libs.tech\ngspice\models" (
     set "PDK_ROOT=%USERPROFILE%\Documents\IHP-Open-PDK"
   ) else if exist "\\wsl$\Ubuntu\home\adatsuk\IHP-Open-PDK\ihp-sg13g2\libs.tech\ngspice\models" (
     set "PDK_ROOT=\\wsl$\Ubuntu\home\adatsuk\IHP-Open-PDK"

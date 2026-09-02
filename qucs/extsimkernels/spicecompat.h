@@ -18,6 +18,7 @@ namespace spicecompat {
      bool containNodes(QStringList &tokens, QStringList &vars);
      void convertNodeNames(QStringList &tokens, QString &sim);
      QString normalize_node_name(QString nod);
+     bool isGroundNetName(const QString &nod);
      //QString convert_relative_filename(QString filename);
      int getPins(const QString &file, const QString &compname, QStringList &pin_names);
      QString getSubcktName(const QString& subfilename);

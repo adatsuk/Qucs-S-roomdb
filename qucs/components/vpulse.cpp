@@ -65,6 +65,8 @@ vPulse::vPulse()
 		QObject::tr("rise time of the leading edge")));
   Props.append(new Property("Tf", "1 us", false,
 		QObject::tr("fall time of the trailing edge")));
+  Props.append(new Property("Per", "", false,
+		QObject::tr("pulse repetition period")));
 
   rotate();  // fix historical flaw
 }
@@ -92,8 +94,11 @@ QString vPulse::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompat
     QString T1 = spicecompat::normalize_value(getProperty("T1")->Value); // T1
     QString T2 = spicecompat::normalize_value(getProperty("T2")->Value); // T2
 
-    s += QStringLiteral(" DC 0 PULSE(%1 %2 %3 %4 %5 {(%6)-(%3)-(%4)-(%5)}) AC 0\n")
-             .arg(VL, VH, T1, Tr, Tf, T2);
+    s += QStringLiteral(" DC 0 PULSE(%1 %2 %3 %4 %5 {(%6)-(%3)-(%4)-(%5)}").arg(VL, VH, T1, Tr, Tf, T2);
+    if (Props.size() > 6 && !Props.at(6)->Value.isEmpty()) {
+        s += QStringLiteral(" %1").arg(spicecompat::normalize_value(Props.at(6)->Value));
+    }
+    s += QStringLiteral(")\n");
 
     return s;
 }

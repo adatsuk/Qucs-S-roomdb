@@ -93,17 +93,33 @@ bool GraphicText::load(const QString &s)
     if (!ok)
         return false;
 
-    n = s.section(' ', 3, 3); // Size
-    font.setPointSize(n.toInt(&ok));
-    if (!ok)
-        return false;
-
-    n = s.section(' ', 4, 4); // Color
+    n = s.section(' ', 3, 3); // Size (or sizeX in symbol format)
+    const QString sizeYToken = s.section(' ', 4, 4);
+    const bool symbolSizeFormat =
+        !sizeYToken.isEmpty() && !sizeYToken.startsWith('#') && !sizeYToken.startsWith(QLatin1String("0x"));
+    if (symbolSizeFormat) {
+        const double sizeX = n.toDouble(&ok);
+        if (!ok) {
+            return false;
+        }
+        const double sizeY = sizeYToken.toDouble(&ok);
+        if (!ok) {
+            return false;
+        }
+        font.setPointSize(qMax(1, static_cast<int>(qRound(qMax(sizeX, sizeY) * 16.0))));
+        n = s.section(' ', 5, 5); // Color
+    } else {
+        font.setPointSize(n.toInt(&ok));
+        if (!ok) {
+            return false;
+        }
+        n = s.section(' ', 4, 4); // Color
+    }
     color = misc::ColorFromString(n);
     if (!color.isValid())
         return false;
 
-    n = s.section(' ', 5, 5); // Angle
+    n = symbolSizeFormat ? s.section(' ', 6, 6) : s.section(' ', 5, 5); // Angle
     angle = n.toInt(&ok);
     if (!ok)
         return false;

@@ -255,6 +255,12 @@ QString spicecompat::normalize_node_name(QString nod) {
     return (nod == "gnd") ? QStringLiteral("0") : nod;
 }
 
+bool spicecompat::isGroundNetName(const QString &nod)
+{
+    return nod.compare(QLatin1String("gnd"), Qt::CaseInsensitive) == 0
+        || nod == QLatin1String("0");
+}
+
 /*
 QString spicecompat::convert_relative_filename(QString filename)
 {

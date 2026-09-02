@@ -998,6 +998,13 @@ bool Schematic::loadComponents(QTextStream *stream, std::list<Component*> *List)
   Component *c;
   while(!stream->atEnd()) {
     Line = stream->readLine();
+    if(Line.isEmpty()) continue;
+
+    // CORE/Qucs exports may embed newlines inside quoted property values (INCLSCR).
+    while(!stream->atEnd() && !Line.trimmed().endsWith(QLatin1Char('>'))) {
+      Line += stream->readLine();
+    }
+
     if(Line.at(0) == '<') if(Line.at(1) == '/') return true;
     Line = Line.trimmed();
     if(Line.isEmpty()) continue;
@@ -1775,6 +1782,9 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
       // tell the subcircuit it belongs to this schematic
       pc->setSchematic (this);
       QString f = pc->getSubcircuitFile();
+      if (f.isEmpty() || !QFileInfo(f).isFile()) {
+        continue; // Xschem-only decoration (launcher, code_shown, …)
+      }
       SubMap::Iterator it = FileList.find(f);
       if(it != FileList.end())
       {
@@ -1846,6 +1856,7 @@ bool Schematic::throughAllComps(QTextStream *stream, int& countInit,
         arg(pc->Name));
         continue;
       }
+      pc->setSchematic(this);
       QString scfile = pc->getSubcircuitFile();
       s = scfile + "/" + pc->Props.at(1)->Value;
       SubMap::Iterator it = FileList.find(s);

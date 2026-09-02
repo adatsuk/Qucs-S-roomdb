@@ -231,6 +231,12 @@ void ExternSimDialog::slotProcessOutput()
             default:
                 break;
         }
+        QFileInfo dsInfo(qucs_dataset);
+        if (dsInfo.exists() && dsInfo.size() < 64) {
+            addLogEntry(tr("Simulation finished but produced no plottable data. "
+                           "Check the console for ngspice model/library errors."),
+                        this->style()->standardIcon(QStyle::SP_MessageBoxWarning));
+        }
     }
     //a_wasSimulated = true;
     //if (out.contains("error",Qt::CaseInsensitive))
@@ -376,7 +382,10 @@ bool ExternSimDialog::logContainsError(const QString &out)
         err_patterns<<"Error:"<<"ERROR"<<"Error "
                     <<"Syntax error:"<<"Expression err:"
                     <<"errors:"<<"simulation(s) aborted"
-                    <<"simulation aborted"<<"analysis aborted";
+                    <<"simulation aborted"<<"analysis aborted"
+                    <<"unknown subckt"<<"Unknown subcircuit"
+                    <<"could not find"<<"Cannot find"
+                    <<"no such file";
         break;
     case spicecompat::simXyce:
         err_patterns<<"Error:"<<"ERROR"<<"MSG_ERROR"

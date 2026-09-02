@@ -7,6 +7,8 @@
 
 #include <QDir>
 #include <QFileInfo>
+
+#include "core_schematic_io.h"
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 
@@ -65,6 +67,56 @@ std::vector<std::string> candidateRefs(const QString &compName, const std::strin
 
 } // namespace
 
+bool tryLoadCoreCellSymbol(const QString &libName, const QString &cellName, QString &symbolSection,
+                           const QString &hintDocPath)
+{
+    symbolSection.clear();
+    if (cellName.trimmed().isEmpty()) {
+        return false;
+    }
+
+    QString schematicPath;
+    if (!tryResolveCoreSchematic(libName, cellName, schematicPath, hintDocPath)) {
+        return false;
+    }
+
+    QString symbolPath = schematicPath;
+    symbolPath.replace(QStringLiteral(".schematic.core"), QStringLiteral(".symbol.core"), Qt::CaseInsensitive);
+    if (!QFileInfo::exists(symbolPath)) {
+        return false;
+    }
+
+    try {
+        const core::Database db = core::Database::loadFromFile(symbolPath.toStdString());
+        const QString exportCell = cellNameFromCorePath(symbolPath);
+        if (exportCell.isEmpty()) {
+            return false;
+        }
+        const core::QucsExporter exporter(exporterOptionsFromEnvironment());
+        const std::vector<std::string> lines = exporter.symbolLinesForCell(db, exportCell.toStdString());
+        if (lines.empty() || !exporter.errors().empty()) {
+            return false;
+        }
+
+        QStringList out;
+        out.reserve(static_cast<int>(lines.size()));
+        for (const std::string &line : lines) {
+            QString qline = QString::fromStdString(line).trimmed();
+            if (qline.isEmpty()) {
+                continue;
+            }
+            if (!qline.startsWith(QLatin1Char('<')) && !qline.endsWith(QLatin1Char('>'))) {
+                qline = QStringLiteral("<") + qline + QStringLiteral(">");
+            }
+            out.append(qline);
+        }
+        symbolSection = out.join(QStringLiteral("\n"));
+        return !symbolSection.trimmed().isEmpty();
+    } catch (...) {
+        return false;
+    }
+}
+
 bool tryLoadCorePrimitiveSymbol(const QString &compName, QString &symbolSection)
 {
     if (compName.trimmed().isEmpty()) {
@@ -96,7 +148,14 @@ bool tryLoadCorePrimitiveSymbol(const QString &compName, QString &symbolSection)
         QStringList out;
         out.reserve(static_cast<int>(lines.size()));
         for (const std::string &line : lines) {
-            out.append(QString::fromStdString(line));
+            QString qline = QString::fromStdString(line).trimmed();
+            if (qline.isEmpty()) {
+                continue;
+            }
+            if (!qline.startsWith(QLatin1Char('<')) && !qline.endsWith(QLatin1Char('>'))) {
+                qline = QStringLiteral("<") + qline + QStringLiteral(">");
+            }
+            out.append(qline);
         }
         symbolSection = out.join(QStringLiteral("\n"));
         return !symbolSection.trimmed().isEmpty();

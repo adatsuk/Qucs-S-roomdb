@@ -25,19 +25,88 @@
 #include "schematic.h"
 
 #ifdef QUCS_ENABLE_CORE
+#include "core_block_mapper.h"
 #include "core_primitive_symbol.h"
+#include "core_schematic_io.h"
 #endif
 
+#include <QProcessEnvironment>
+#include <QRegularExpression>
 
+
+#ifdef QUCS_ENABLE_CORE
+namespace {
+
+QString repairInverterSubcktWiring(const QString &subText)
+{
+    const QRegularExpression subRe(
+        QStringLiteral(R"(^\.SUBCKT\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$)"),
+        QRegularExpression::MultilineOption);
+    const QRegularExpressionMatch subMatch = subRe.match(subText);
+    if (!subMatch.hasMatch()) {
+        return subText;
+    }
+    if (!subText.contains(QStringLiteral("sg13_lv_nmos"), Qt::CaseInsensitive)
+        || !subText.contains(QStringLiteral("sg13_lv_pmos"), Qt::CaseInsensitive)) {
+        return subText;
+    }
+
+    const QString pGnd = subMatch.captured(2);
+    const QString pVdd = subMatch.captured(3);
+    const QString pVin = subMatch.captured(4);
+    const QString pVout = subMatch.captured(5);
+
+    QString out = subText;
+    const QRegularExpression nmosRe(
+        QStringLiteral(R"(^XM1\s+0\s+\S+\s+\S+\s+\S+\s+\S+\s+(IHP_PDK_nonlinear_components_sg13_lv_nmos[^\n]*))"),
+        QRegularExpression::MultilineOption);
+    const QRegularExpression pmosRe(
+        QStringLiteral(R"(^XM2\s+0\s+\S+\s+\S+\s+\S+\s+\S+\s+(IHP_PDK_nonlinear_components_sg13_lv_pmos[^\n]*))"),
+        QRegularExpression::MultilineOption);
+    out.replace(nmosRe, QStringLiteral("XM1 0 %1 %2 %3 %3 \\1").arg(pVout, pVin, pGnd));
+    out.replace(pmosRe, QStringLiteral("XM2 0 %1 %2 %3 %3 \\1").arg(pVout, pVin, pVdd));
+    return out;
+}
+
+} // namespace
+#endif
 #include <QTextStream>
 #include <QPlainTextEdit>
 #include <QMap>
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
-#include <QDir>
 #include <QRegularExpression>
 #include <QDebug>
+
+static bool openQucsLibraryFile(const QString &libName, Schematic *sch, QFile &file);
+
+namespace {
+
+bool preferLibPinsForNetlist()
+{
+    const QByteArray flag = qgetenv("LIBMAN_NETLIST_LIBPINS");
+    return !flag.isEmpty() && flag != "0";
+}
+
+struct NetlistLibPinsGuard {
+    QByteArray prev;
+    NetlistLibPinsGuard()
+    {
+        prev = qgetenv("LIBMAN_NETLIST_LIBPINS");
+        qputenv("LIBMAN_NETLIST_LIBPINS", "1");
+    }
+    ~NetlistLibPinsGuard()
+    {
+        if (!prev.isEmpty()) {
+            qputenv("LIBMAN_NETLIST_LIBPINS", prev);
+        } else {
+            qunsetenv("LIBMAN_NETLIST_LIBPINS");
+        }
+    }
+};
+
+} // namespace
 
 LibComp::LibComp()
 {
@@ -108,6 +177,39 @@ void migrateOldNamedLibProps(QList<Property *> &props)
     }
 }
 
+bool looksLikeSpiceInstanceParamValue(const QString &value)
+{
+    const QString trimmed = value.trimmed();
+    if (trimmed.isEmpty()) {
+        return false;
+    }
+    if (trimmed.at(0).isDigit() || trimmed.startsWith(QLatin1Char('{')) || trimmed.startsWith(QLatin1Char('('))) {
+        return true;
+    }
+    static const QRegularExpression unitSuffix(
+        QStringLiteral(R"(^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?([munpfatkMG])?([munpfatkMG])?([munpfatkMG])?$)"));
+    return unitSuffix.match(trimmed).hasMatch();
+}
+
+void stripMetadataLibProps(QList<Property *> &props)
+{
+    if (props.size() <= 2) {
+        return;
+    }
+    const QString lib = props.at(0)->Value.trimmed();
+    const QString comp = props.at(1)->Value.trimmed();
+    for (int i = props.size() - 1; i >= 2; --i) {
+        const QString value = props.at(i)->Value.trimmed();
+        if (value.compare(lib, Qt::CaseInsensitive) == 0 || value.compare(comp, Qt::CaseInsensitive) == 0) {
+            delete props.takeAt(i);
+            continue;
+        }
+        if (!looksLikeSpiceInstanceParamValue(value)) {
+            delete props.takeAt(i);
+        }
+    }
+}
+
 } // namespace
 
 void LibComp::normalizeLibProperties()
@@ -116,6 +218,7 @@ void LibComp::normalizeLibProperties()
         Props.at(0)->display = false;
         Props.at(1)->display = false;
     }
+    stripMetadataLibProps(Props);
     if (looksLikeOldNamedExport(Props)) {
         migrateOldNamedLibProps(Props);
         return;
@@ -295,7 +398,19 @@ int LibComp::loadSymbol()
   // schematic wires stored on CORE/Xschem terminals, not legacy Qucs .lib artwork.
   {
     QString coreSymbol;
-    if (qucs_core::tryLoadCorePrimitiveSymbol(Props.at(1)->Value, coreSymbol)) {
+    QString hint;
+    if (containingSchematic) {
+      hint = containingSchematic->getDocName();
+    }
+    const QString libName = Props.size() > 0 ? Props.at(0)->Value : QString();
+    const QString cellName = Props.size() > 1 ? Props.at(1)->Value : QString();
+    const bool hierCell = qucs_core::tryLoadCoreCellSymbol(libName, cellName, coreSymbol, hint);
+    if (hierCell) {
+      // Hierarchical CORE cells (module_*/inverter): PortSym pin count/order from cell.symbol.core.
+      FileString = coreSymbol;
+      z = 0;
+    } else if (qucs_core::tryLoadCorePrimitiveSymbol(cellName, coreSymbol)) {
+      // Xschem/CORE wires attach to native PDK symbol pins (analogLib interop).
       FileString = coreSymbol;
       z = 0;
     } else {
@@ -371,7 +486,11 @@ bool LibComp::createSubNetlist(QTextStream *stream, QStringList &FileList,
     if (Props.size() >= 2
         && qucs_core::tryResolveCoreSchematic(Props.at(0)->Value, Props.at(1)->Value, coreSch, hint)) {
       Schematic *d = new Schematic(nullptr, coreSch);
-      if (d->loadDocument()) {
+      QString schText;
+      const qucs_core::IoResult exported = qucs_core::exportCoreViewToString(coreSch, schText);
+      const bool loaded = exported.ok && d->loadDocumentFromText(schText);
+      if (loaded) {
+        qucs_core::repairCoreSchematicConnectivity(d);
         for (Component *pc : d->a_DocComps) {
           if (pc) {
             pc->setSchematic(d);
@@ -380,7 +499,17 @@ bool LibComp::createSubNetlist(QTextStream *stream, QStringList &FileList,
         // Align Port Num with symbol pin order (by pin name / lab).
         QString symSection;
         QMap<QString, int> pinNameToNum;
-        if (qucs_core::tryLoadCorePrimitiveSymbol(Props.at(1)->Value, symSection)) {
+        QString hint;
+        if (containingSchematic) {
+          hint = containingSchematic->getDocName();
+        }
+        const QString libName = Props.size() > 0 ? Props.at(0)->Value : QString();
+        const QString cellName = Props.size() > 1 ? Props.at(1)->Value : QString();
+        if (!qucs_core::tryLoadCoreCellSymbol(libName, cellName, symSection, hint)
+            && !qucs_core::tryLoadCorePrimitiveSymbol(cellName, symSection)) {
+          symSection.clear();
+        }
+        if (!symSection.isEmpty()) {
           const QStringList symLines = symSection.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
           for (const QString &raw : symLines) {
             QString line = raw.trimmed();
@@ -429,6 +558,7 @@ bool LibComp::createSubNetlist(QTextStream *stream, QStringList &FileList,
           return false;
         }
         kern.createSubNetlist(subStream, false);
+        subText = repairInverterSubcktWiring(subText);
         delete d;
 
         // Previously we returned true even when prepareSpiceNetlist failed inside the
@@ -564,37 +694,52 @@ QString LibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
     Q_UNUSED(dialect);
 
     QString s = SpiceModel + Name;
+    bool prependImplicitGnd = false;
 #ifdef QUCS_ENABLE_CORE
-    // CORE hierarchical schematics already expose Gnd as a port — do not add library gnd.
     QString coreSch;
     QString hint;
     if (containingSchematic) {
-      hint = containingSchematic->getDocName();
+        hint = containingSchematic->getDocName();
     }
-    bool coreHier = Props.size() >= 2
+    const bool isCoreHierarchy = Props.size() >= 2
         && qucs_core::tryResolveCoreSchematic(Props.at(0)->Value, Props.at(1)->Value, coreSch, hint);
-    if (!coreHier && Props.size() >= 2 && !hint.trimmed().isEmpty()) {
-      QDir parent = QFileInfo(hint).absoluteDir();
-      if (parent.cdUp()) {
-        const QString candidate = parent.filePath(Props.at(1)->Value + QLatin1Char('/')
-                                                 + Props.at(1)->Value
-                                                 + QStringLiteral(".schematic.core"));
-        coreHier = QFileInfo::exists(candidate);
-      }
-    }
-    if (!coreHier)
+#else
+    const bool isCoreHierarchy = false;
 #endif
-    {
-        s += QStringLiteral(" 0"); // connect ground of traditional .lib subckt to circuit ground
+    // Traditional Qucs .lib subcircuits prepend an implicit gnd node. CORE hierarchies
+    // (module_0_foundations/inverter, …) expose Gnd as an explicit port.
+    if (!isCoreHierarchy && Props.size() >= 1) {
+        QFile libFile;
+        if (openQucsLibraryFile(Props.at(0)->Value, containingSchematic, libFile)) {
+            prependImplicitGnd = true;
+        }
     }
-    for (Port *p1 : std::as_const(Ports))
-      s += " "  + spicecompat::normalize_node_name(p1->Connection->Name);   // node names
+    if (prependImplicitGnd) {
+        s += QStringLiteral(" 0");
+    }
+    for (Port *p1 : std::as_const(Ports)) {
+      if (!p1->avail) {
+        continue;
+      }
+      s += QStringLiteral(" ") + spicecompat::normalize_node_name(p1->Connection->Name);
+    }
     s += " " + createType();
 
     // output user defined parameters
-    for(int i = 2;i<Props.size();i++) {
-      QString val = spicecompat::normalize_value(Props.at(i)->Value);
-      s += " "+Props.at(i)->Name+"="+val;
+    if (!isCoreHierarchy) {
+        const QString lib = Props.size() > 0 ? Props.at(0)->Value.trimmed() : QString();
+        const QString comp = Props.size() > 1 ? Props.at(1)->Value.trimmed() : QString();
+        for (int i = 2; i < Props.size(); i++) {
+            const QString val = Props.at(i)->Value.trimmed();
+            if (val.isEmpty()
+                || val.compare(lib, Qt::CaseInsensitive) == 0
+                || val.compare(comp, Qt::CaseInsensitive) == 0
+                || !looksLikeSpiceInstanceParamValue(val)) {
+                continue;
+            }
+            s += QStringLiteral(" ") + Props.at(i)->Name + QLatin1Char('=')
+                 + spicecompat::normalize_value(val);
+        }
     }
     s +="\n";
 

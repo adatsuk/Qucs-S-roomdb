@@ -167,6 +167,9 @@ void Ngspice::createNetlist(
 
         QString nods;
         for (const QString& nod : std::as_const(vars)) {
+            if (spicecompat::isGroundNetName(nod)) {
+                continue;
+            }
             if ( nod.endsWith("#branch") )
                 nods.append(QStringLiteral("i(%1) ").arg(nod.section('#', 0, 0)));
             else
@@ -545,7 +548,11 @@ QString Ngspice::collectSpiceinit(Schematic* sch)
         if (pc->Model == "SPICEINIT") {
             collected_spiceinit += ((SpiceSpiceinit*)pc)->getSpiceinit();
         } else if (pc->Model == "Sub") {
-            Schematic *sub = new Schematic(0, ((Subcircuit *)pc)->getSubcircuitFile());
+            const QString subFile = ((Subcircuit *)pc)->getSubcircuitFile();
+            if (subFile.isEmpty() || !QFileInfo(subFile).isFile()) {
+                continue;
+            }
+            Schematic *sub = new Schematic(0, subFile);
             if(!sub->loadDocument())      // load document if possible
             {
                 delete sub;
