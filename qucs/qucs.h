@@ -67,6 +67,7 @@ class QModelIndex;
 class QPushButton;
 class QTextEdit;
 class QFrame;
+class QFileSystemWatcher;
 
 class SymbolWidget;
 
@@ -118,6 +119,11 @@ public:
   QucsDoc *findDoc(QString, int *Pos = 0);
   QString fileType(const QString &);
   static bool isTextDocument(QWidget *);
+#ifdef QUCS_ENABLE_CORE
+  void watchCoreLockFile(const QString &corePath);
+  void unwatchCoreLockFile(const QString &corePath);
+  void updateCoreLockUi(Schematic *schematic);
+#endif
 
   QString ProjName; // name of the project, that is open
   // QHash<QString,QString> schNameHash; // QHash for the schematic files lookup
@@ -336,6 +342,11 @@ private:
   int ccCurIdx; // CompChooser current index (used during search)
   bool a_netlist2Console;
 
+#ifdef QUCS_ENABLE_CORE
+  QFileSystemWatcher *m_coreLockWatcher = nullptr;
+  QHash<QString, int> m_coreLockWatchRefs;
+#endif
+
   // ********** Methods ***************************************************
   void initView();
   void initCursorMenu();
@@ -355,6 +366,9 @@ private:
   void changeSchematicSymbolMode(Schematic *);
   static bool recurRemove(const QString &);
   void closeFile(int);
+#ifdef QUCS_ENABLE_CORE
+  void refreshSchematicsForCoreLock(const QString &corePath);
+#endif
 
   /// @brief Rename a file
   /// @param oldPath Full path to the existing file to be renamed.
@@ -402,6 +416,9 @@ private slots:
   void slotToggleOctave(bool);
   void slotToggleDock(bool);
   void slotHelpAbout(); // shows an about dialog
+#ifdef QUCS_ENABLE_CORE
+  void slotCoreLockFileChanged(const QString &path);
+#endif
 
   ///
   /// @brief Opens the shortcut editor dialog

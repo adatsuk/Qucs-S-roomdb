@@ -31,6 +31,8 @@
 #include "schematic.h"
 
 #ifdef QUCS_ENABLE_CORE
+#include "core_file_lock.h"
+#include "core_lock_integration.h"
 #include "core_schematic_io.h"
 #endif
 #include "settings.h"
@@ -127,7 +129,12 @@ Schematic::Schematic(QucsApp *App_, const QString &Name_) :
     }
 }
 
-Schematic::~Schematic() {}
+Schematic::~Schematic()
+{
+#ifdef QUCS_ENABLE_CORE
+    releaseHeldCoreLock();
+#endif
+}
 
 // ---------------------------------------------------
 bool Schematic::createSubcircuitSymbol()
@@ -178,6 +185,17 @@ bool Schematic::createSubcircuitSymbol()
 void Schematic::becomeCurrent(bool update)
 {
     emit signalCursorPosChanged(0, 0, "");
+
+#ifdef QUCS_ENABLE_CORE
+    if (a_coreViewOnly && a_App != nullptr) {
+        a_App->select->setChecked(true);
+        a_App->MouseMoveAction = nullptr;
+        a_App->MousePressAction = &MouseActions::MPressSelect;
+        a_App->MouseReleaseAction = &MouseActions::MReleaseSelect;
+        a_App->MouseDoubleClickAction = &MouseActions::MDoubleClickSelect;
+        a_App->updateCoreLockUi(this);
+    }
+#endif
 
     // update appropriate menu entry
     if (a_symbolMode) {
@@ -252,6 +270,11 @@ void Schematic::setName(const QString &Name_)
 // Sets the document to be changed or not to be changed.
 void Schematic::setChanged(bool c, bool fillStack, char Op)
 {
+#ifdef QUCS_ENABLE_CORE
+    if (a_coreViewOnly && c) {
+        return;
+    }
+#endif
     if ((!a_DocChanged) && c)
         emit signalFileChanged(true);
     else if (a_DocChanged && (!c))
@@ -608,6 +631,12 @@ void Schematic::PostPaintEvent(
 // ---------------------------------------------------
 void Schematic::contentsMouseMoveEvent(QMouseEvent *Event)
 {
+#ifdef QUCS_ENABLE_CORE
+    if (a_coreViewOnly && Event->buttons().testFlag(Qt::LeftButton)
+        && a_App->MouseMoveAction != nullptr) {
+        return;
+    }
+#endif
     const QPoint modelPos = contentsToModel(Event->pos());
     auto xpos = modelPos.x();
     auto ypos = modelPos.y();
@@ -675,11 +704,64 @@ void Schematic::contentsMouseMoveEvent(QMouseEvent *Event)
         (a_App->view->*(a_App->MouseMoveAction))(this, Event);
 }
 
+#ifdef QUCS_ENABLE_CORE
+void Schematic::configureCoreLockState(bool viewOnly, bool lockHeld, const QString &corePath,
+                                     const QString &status)
+{
+    a_coreViewOnly = viewOnly;
+    a_coreLockHeld = lockHeld;
+    a_coreLockPath = QFileInfo(corePath).absoluteFilePath();
+    a_coreLockStatus = status;
+}
+
+void Schematic::releaseHeldCoreLock()
+{
+    if (!a_coreLockHeld || a_coreLockPath.isEmpty()) {
+        return;
+    }
+
+    const QString path = a_coreLockPath;
+    a_coreLockHeld = false;
+    qucs_core::releaseCoreLockOnClose(path);
+
+    if (a_App != nullptr) {
+        a_App->unwatchCoreLockFile(path);
+    }
+}
+
+void Schematic::dropCoreLockOwnership()
+{
+    if (!a_coreLockHeld || a_coreLockPath.isEmpty()) {
+        return;
+    }
+
+    a_coreLockHeld = false;
+    qucs_core::releaseCoreLockOnClose(a_coreLockPath);
+}
+#endif
+
 // -----------------------------------------------------------
 void Schematic::contentsMousePressEvent(QMouseEvent *Event)
 {
     a_App->editText->setHidden(true); // disable text edit of component property
     this->setFocus();
+#ifdef QUCS_ENABLE_CORE
+    if (a_coreViewOnly) {
+        if (Event->button() == Qt::MiddleButton) {
+            a_previousCursorPosition = contentsToViewport(Event->pos());
+            setCursor(Qt::ClosedHandCursor);
+            return;
+        }
+
+        if (Event->button() == Qt::LeftButton) {
+            if (a_App->MousePressAction != &MouseActions::MPressSelect) {
+                return;
+            }
+        } else if (Event->button() != Qt::RightButton) {
+            return;
+        }
+    }
+#endif
     if (    a_App->MouseReleaseAction == &MouseActions::MReleasePaste
         ||  a_App->MouseReleaseAction == &MouseActions::MReleaseMoveFree) {
         return;
@@ -735,6 +817,11 @@ void Schematic::contentsMouseReleaseEvent(QMouseEvent *Event)
 // -----------------------------------------------------------
 void Schematic::contentsMouseDoubleClickEvent(QMouseEvent *Event)
 {
+#ifdef QUCS_ENABLE_CORE
+    if (a_coreViewOnly) {
+        return;
+    }
+#endif
     if (a_App->MouseDoubleClickAction)
         (a_App->view->*(a_App->MouseDoubleClickAction))(this, Event);
 }
@@ -1329,6 +1416,11 @@ void Schematic::copy()
 // Cut function, copy followed by deletion
 void Schematic::cut()
 {
+#ifdef QUCS_ENABLE_CORE
+    if (a_coreViewOnly) {
+        return;
+    }
+#endif
     copy();
     deleteElements(); //delete selected elements
     viewport()->update();
@@ -1338,6 +1430,11 @@ void Schematic::cut()
 // Performs paste function from clipboard
 bool Schematic::paste(QTextStream *stream, std::list<Element*> *pe)
 {
+#ifdef QUCS_ENABLE_CORE
+    if (a_coreViewOnly) {
+        return false;
+    }
+#endif
     return pasteFromClipboard(stream, pe);
 }
 
@@ -1354,6 +1451,11 @@ bool Schematic::load()
 
     if (!loadDocument())
         return false;
+#ifdef QUCS_ENABLE_CORE
+    if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
+        qucs_core::finalizeCoreDocumentLock(this, a_App);
+    }
+#endif
     a_lastSaved = QDateTime::currentDateTime();
 
     while (!a_undoAction.isEmpty()) {
@@ -2051,6 +2153,12 @@ void Schematic::slotScrollRight()
 // Is called if an object is dropped (after drag'n drop).
 void Schematic::contentsDropEvent(QDropEvent *Event)
 {
+#ifdef QUCS_ENABLE_CORE
+  if (a_coreViewOnly) {
+    Event->ignore();
+    return;
+  }
+#endif
   if (a_dragIsOkay) {
     QList<QUrl> urls = Event->mimeData()->urls();
     if (urls.isEmpty()) {

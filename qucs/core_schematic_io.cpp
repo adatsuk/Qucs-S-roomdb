@@ -1,5 +1,6 @@
 #include "core_schematic_io.h"
 
+#include "core_file_lock.h"
 #include "core_paths.h"
 #include "database.h"
 #include "primitive_resolver.h"
@@ -528,6 +529,13 @@ IoResult exportCoreViewToString(const QString &corePath, QString &schText)
 IoResult importSchStringToCore(const QString &schText, const QString &corePath)
 {
     IoResult result;
+    const CoreFileLockInfo lockInfo = readCoreLockFile(corePath);
+    if (lockInfo.present && !isStaleCoreLock(lockInfo) && !isCoreLockHeldByCurrentProcess(lockInfo)
+        && coreLockRefCount(QFileInfo(corePath).absoluteFilePath()) == 0) {
+        result.message = QObject::tr("Cannot import: %1").arg(formatCoreLockStatusLine(lockInfo));
+        return result;
+    }
+
     try {
         core::QucsImporter::Options opts;
         opts.libName = "qucs_s";
@@ -566,6 +574,13 @@ IoResult importSchStringToCore(const QString &schText, const QString &corePath)
 IoResult importSchFileToCore(const QString &schPath, const QString &corePath)
 {
     IoResult result;
+    const CoreFileLockInfo lockInfo = readCoreLockFile(corePath);
+    if (lockInfo.present && !isStaleCoreLock(lockInfo) && !isCoreLockHeldByCurrentProcess(lockInfo)
+        && coreLockRefCount(QFileInfo(corePath).absoluteFilePath()) == 0) {
+        result.message = QObject::tr("Cannot import: %1").arg(formatCoreLockStatusLine(lockInfo));
+        return result;
+    }
+
     try {
         core::QucsImporter::Options opts;
         opts.libName = "qucs_s";

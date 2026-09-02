@@ -44,6 +44,8 @@
 #include <QVariant>
 #include <QDebug>
 #include <QTimer>
+#include <QFileSystemWatcher>
+#include <QFileInfo>
 
 #include "main.h"
 #include "qucs.h"
@@ -51,6 +53,8 @@
 #include "textdoc.h"
 #include "schematic.h"
 #ifdef QUCS_ENABLE_CORE
+#include "core_file_lock.h"
+#include "core_lock_integration.h"
 #include "core_schematic_io.h"
 #endif
 #include "mouseactions.h"
@@ -137,6 +141,13 @@ QucsApp::QucsApp(bool netlist2Console) :
   MouseDoubleClickAction = nullptr;
 
   initView();
+#ifdef QUCS_ENABLE_CORE
+  m_coreLockWatcher = new QFileSystemWatcher(this);
+  connect(m_coreLockWatcher, &QFileSystemWatcher::fileChanged,
+          this, &QucsApp::slotCoreLockFileChanged);
+  connect(m_coreLockWatcher, &QFileSystemWatcher::directoryChanged,
+          this, &QucsApp::slotCoreLockFileChanged);
+#endif
   initActions();
   initMenuBar();
   fillSimulatorsComboBox();
@@ -1897,6 +1908,16 @@ bool QucsApp::saveFile(QucsDoc *Doc)
 void QucsApp::slotFileSave()
 {
   statusBar()->showMessage(tr("Saving file..."));
+#ifdef QUCS_ENABLE_CORE
+  QWidget *currentWidget = DocumentTab->currentWidget();
+  if (!isTextDocument(currentWidget)) {
+    const auto *sch = static_cast<const Schematic *>(currentWidget);
+    if (sch->isCoreViewOnly()) {
+      statusBar()->showMessage(tr("Document is read-only."), 3000);
+      return;
+    }
+  }
+#endif
   DocumentTab->blockSignals(true);   // no user interaction during that time
   slotHideEdit(); // disable text edit of component property
 
@@ -2124,6 +2145,22 @@ void QucsApp::closeFile(int index)
 
     QucsDoc *Doc = getDoc(index);
     if(Doc->getDocChanged()) {
+#ifdef QUCS_ENABLE_CORE
+      const auto *sch = dynamic_cast<const Schematic *>(Doc);
+      if (sch != nullptr && sch->isCoreViewOnly()) {
+        switch (QMessageBox::warning(this, tr("Closing Qucs document"),
+                                     tr("The document has unsaved changes that cannot be saved "
+                                        "because it is read-only.\n")
+                                         + tr("Discard local changes and close?"),
+                                     QMessageBox::Discard | QMessageBox::Cancel)) {
+        case QMessageBox::Cancel:
+          return;
+        default:
+          break;
+        }
+      } else
+#endif
+      {
       switch(QMessageBox::warning(this,tr("Closing Qucs document"),
         tr("The document contains unsaved changes!\n")+
         tr("Do you want to save the changes before closing?"),
@@ -2132,6 +2169,7 @@ void QucsApp::closeFile(int index)
                  break;
         case QMessageBox::Cancel : return;
         default: break;
+      }
       }
     }
 
@@ -2308,6 +2346,15 @@ void QucsApp::slotChangeView()
   }
 
   Doc->becomeCurrent(true);
+
+#ifdef QUCS_ENABLE_CORE
+  if (!isTextDocument(w)) {
+    updateCoreLockUi(static_cast<Schematic *>(w));
+  } else {
+    fileSave->setEnabled(true);
+    fileSaveAs->setEnabled(true);
+  }
+#endif
 
 //  TODO proper window title
 //  QFileInfo Info (Doc-> getDocName());
@@ -4538,3 +4585,162 @@ void ContextMenuTabWidget::slotCxMenuRename()
 {
   startRename(contextTabIndex);
 }
+
+#ifdef QUCS_ENABLE_CORE
+void QucsApp::watchCoreLockFile(const QString &corePath)
+{
+  if (!qucs_core::isCoreViewPath(corePath) || m_coreLockWatcher == nullptr) {
+    return;
+  }
+
+  const QString absPath = QFileInfo(corePath).absoluteFilePath();
+  const QString lockPath = lockFilePathForCore(absPath);
+  const int next = m_coreLockWatchRefs.value(lockPath, 0) + 1;
+  m_coreLockWatchRefs.insert(lockPath, next);
+  if (next != 1) {
+    return;
+  }
+
+  const QString watchDir = QFileInfo(absPath).absolutePath();
+  if (!m_coreLockWatcher->directories().contains(watchDir)) {
+    m_coreLockWatcher->addPath(watchDir);
+  }
+  if (QFileInfo::exists(lockPath) && !m_coreLockWatcher->files().contains(lockPath)) {
+    m_coreLockWatcher->addPath(lockPath);
+  }
+}
+
+void QucsApp::unwatchCoreLockFile(const QString &corePath)
+{
+  if (m_coreLockWatcher == nullptr) {
+    return;
+  }
+
+  const QString absPath = QFileInfo(corePath).absoluteFilePath();
+  const QString lockPath = lockFilePathForCore(absPath);
+  const int next = m_coreLockWatchRefs.value(lockPath, 0) - 1;
+  if (next > 0) {
+    m_coreLockWatchRefs.insert(lockPath, next);
+    return;
+  }
+
+  m_coreLockWatchRefs.remove(lockPath);
+  if (m_coreLockWatcher->files().contains(lockPath)) {
+    m_coreLockWatcher->removePath(lockPath);
+  }
+}
+
+void QucsApp::refreshSchematicsForCoreLock(const QString &lockPath)
+{
+  QString corePath = lockPath;
+  if (corePath.endsWith(QStringLiteral(".lck"))) {
+    corePath.chop(4);
+  }
+  const QString absCore = QFileInfo(corePath).absoluteFilePath();
+
+  for (int i = 0; i < DocumentTab->count(); ++i) {
+    QWidget *widget = DocumentTab->widget(i);
+    if (isTextDocument(widget)) {
+      continue;
+    }
+
+    auto *sch = static_cast<Schematic *>(widget);
+    if (QFileInfo(sch->getDocName()).absoluteFilePath() == absCore) {
+      qucs_core::refreshCoreDocumentLock(sch, this);
+    }
+  }
+}
+
+void QucsApp::slotCoreLockFileChanged(const QString &path)
+{
+  if (path.endsWith(QStringLiteral(".lck"))) {
+    refreshSchematicsForCoreLock(path);
+    if (QFileInfo::exists(path)) {
+      if (!m_coreLockWatcher->files().contains(path)) {
+        m_coreLockWatcher->addPath(path);
+      }
+    } else if (m_coreLockWatcher->files().contains(path)) {
+      m_coreLockWatcher->removePath(path);
+    }
+    return;
+  }
+
+  for (auto it = m_coreLockWatchRefs.constBegin(); it != m_coreLockWatchRefs.constEnd(); ++it) {
+    const QString lockPath = it.key();
+    if (QFileInfo(lockPath).absolutePath() == path) {
+      refreshSchematicsForCoreLock(lockPath);
+      if (QFileInfo::exists(lockPath) && !m_coreLockWatcher->files().contains(lockPath)) {
+        m_coreLockWatcher->addPath(lockPath);
+      }
+    }
+  }
+}
+
+void QucsApp::updateCoreLockUi(Schematic *schematic)
+{
+  if (schematic == nullptr) {
+    return;
+  }
+
+  const bool coreDoc = qucs_core::isCoreViewPath(schematic->getDocName());
+  const bool viewOnly = coreDoc && schematic->isCoreViewOnly();
+  const bool canEdit = !viewOnly;
+
+  fileSave->setEnabled(canEdit || !coreDoc);
+  fileSaveAs->setEnabled(canEdit || !coreDoc);
+
+  insWire->setEnabled(canEdit);
+  insLabel->setEnabled(canEdit);
+  insPort->setEnabled(canEdit);
+  insGround->setEnabled(canEdit);
+  insEquation->setEnabled(canEdit);
+  setMarker->setEnabled(canEdit);
+  setDiagramLimits->setEnabled(canEdit);
+  editRotate->setEnabled(canEdit);
+  editMirror->setEnabled(canEdit);
+  editMirrorY->setEnabled(canEdit);
+  editPaste->setEnabled(canEdit);
+  editStretch->setEnabled(canEdit);
+  editMove->setEnabled(canEdit);
+  editActivate->setEnabled(canEdit);
+  editDelete->setEnabled(canEdit);
+  editCut->setEnabled(canEdit);
+  editCopy->setEnabled(true);
+  undo->setEnabled(canEdit);
+  redo->setEnabled(canEdit);
+  symEdit->setEnabled(canEdit);
+  simulate->setEnabled(canEdit);
+  tune->setEnabled(canEdit);
+  changeProps->setEnabled(canEdit);
+  moveText->setEnabled(canEdit);
+  onGrid->setEnabled(canEdit);
+  alignTop->setEnabled(canEdit);
+  alignBottom->setEnabled(canEdit);
+  alignLeft->setEnabled(canEdit);
+  alignRight->setEnabled(canEdit);
+  centerHor->setEnabled(canEdit);
+  centerVert->setEnabled(canEdit);
+  distrHor->setEnabled(canEdit);
+  distrVert->setEnabled(canEdit);
+  CompChoose->setEnabled(canEdit);
+  CompSearch->setEnabled(canEdit);
+  CompSearchClear->setEnabled(canEdit);
+
+  const int tabIndex = DocumentTab->indexOf(schematic);
+  if (tabIndex >= 0) {
+    QFileInfo info(schematic->getDocName());
+    QString title = info.fileName();
+    if (title.isEmpty()) {
+      title = tr("untitled");
+    }
+    if (viewOnly) {
+      title = tr("[Read-only] %1").arg(title);
+    }
+    DocumentTab->setTabText(tabIndex, title);
+  }
+
+  if (coreDoc) {
+    statusBar()->showMessage(schematic->coreLockStatusText());
+  }
+}
+#endif

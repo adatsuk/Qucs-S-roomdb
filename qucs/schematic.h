@@ -270,6 +270,15 @@ public:
   void setSymbolMode(bool value) { a_symbolMode = value; }
   bool getIsSymbolOnly() const { return a_isSymbolOnly; }
   void setIsSymbolOnly(bool value) { a_isSymbolOnly = value; }
+#ifdef QUCS_ENABLE_CORE
+  bool isCoreViewOnly() const { return a_coreViewOnly; }
+  bool holdsCoreLock() const { return a_coreLockHeld; }
+  QString coreLockStatusText() const { return a_coreLockStatus; }
+  void configureCoreLockState(bool viewOnly, bool lockHeld, const QString &corePath,
+                              const QString &status);
+  void releaseHeldCoreLock();
+  void dropCoreLockOwnership();
+#endif
   void clearPostedPaintEvents() { a_PostedPaintEvents.clear(); }
 
   // The pointers points to the current lists, either to the schematic
@@ -292,6 +301,12 @@ private:
 
   bool a_symbolMode;  // true if in symbol painting mode
   bool a_isSymbolOnly;
+#ifdef QUCS_ENABLE_CORE
+  bool a_coreViewOnly = false;
+  bool a_coreLockHeld = false;
+  QString a_coreLockPath;
+  QString a_coreLockStatus;
+#endif
 
   // Horizontal and vertical grid step, grid color.
   int a_GridX;

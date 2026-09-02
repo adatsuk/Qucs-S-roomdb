@@ -46,6 +46,7 @@
 #include "osdi/osdi_0_3.h"
 
 #ifdef QUCS_ENABLE_CORE
+#include "core_lock_integration.h"
 #include "core_schematic_io.h"
 #include "core_block_mapper.h"
 #include <QBuffer>
@@ -668,6 +669,12 @@ int Schematic::saveDocument()
 {
 #ifdef QUCS_ENABLE_CORE
   if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
+    const qucs_core::IoResult lockCheck = qucs_core::verifyCoreLockForSave(a_DocName);
+    if (!lockCheck.ok) {
+      QMessageBox::critical(nullptr, QObject::tr("Error"), lockCheck.message);
+      return -1;
+    }
+
     const qucs_core::IoResult saved = qucs_core::saveSchematicToCoreFileDirect(this, a_DocName);
     if (!saved.ok) {
       QMessageBox::critical(nullptr, QObject::tr("Error"),

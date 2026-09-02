@@ -6,6 +6,7 @@
 
 #include "cell_content.h"
 #include "coord_scale.h"
+#include "core_file_lock.h"
 #include "core_paths.h"
 #include "core_schematic_io.h"
 #include "database.h"
@@ -708,6 +709,13 @@ IoResult saveSchematicToCoreFileDirect(Schematic *schematic, const QString &core
     IoResult result;
     if (schematic == nullptr) {
         result.message = QObject::tr("No schematic document to save.");
+        return result;
+    }
+
+    const CoreFileLockInfo lockInfo = readCoreLockFile(corePath);
+    if (lockInfo.present && !isStaleCoreLock(lockInfo) && !isCoreLockHeldByCurrentProcess(lockInfo)
+        && coreLockRefCount(QFileInfo(corePath).absoluteFilePath()) == 0) {
+        result.message = QObject::tr("Cannot save: %1").arg(formatCoreLockStatusLine(lockInfo));
         return result;
     }
 
