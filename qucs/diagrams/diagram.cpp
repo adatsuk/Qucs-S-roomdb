@@ -918,6 +918,36 @@ int Graph::loadDatFile(const QString &fileName) {
         pFile = strstr(pFile + 4, Variable.toLatin1());
     }
 
+    if (!pFile) {
+        // Dual-tool / legacy diagrams often store "ngspice/v(out)" while datasets use
+        // "tran.v(out)" / "ac.v(out)" after normalizeVarsNames. Try common sim prefixes.
+        const QString bare = Variable; // "dep name "
+        if (!bare.startsWith(QStringLiteral("dep tran.")) && !bare.startsWith(QStringLiteral("dep ac."))
+            && !bare.startsWith(QStringLiteral("dep dc."))) {
+            const QString namePart = bare.mid(4); // after "dep "
+            for (const char *simPrefix : {"tran.", "ac.", "dc."}) {
+                const QString candidate = QStringLiteral("dep ") + QLatin1String(simPrefix) + namePart;
+                const QByteArray candidateBytes = candidate.toLatin1();
+                pFile = strstr(FileString, candidateBytes.constData());
+                while (pFile) {
+                    if (*(pFile - 1) == '<') {
+                        Variable = candidate;
+                        break;
+                    }
+                    if (strncmp(pFile - 3, "<in", 3) == 0) {
+                        isIndep = true;
+                        Variable = candidate;
+                        break;
+                    }
+                    pFile = strstr(pFile + 4, candidateBytes.constData());
+                }
+                if (pFile) {
+                    break;
+                }
+            }
+        }
+    }
+
     if (!pFile) return 0;   // data not found
 
     QString Line, tmp;
