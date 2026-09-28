@@ -739,6 +739,12 @@ void MouseActions::rightPressMenu(Schematic *Doc, QMouseEvent *Event, float fX, 
                                  QucsMain,
                                  SLOT(slotSaveDiagramToGraphicsFile()));
                 ComponentMenu->addAction(actExport);
+
+                QAction *actCopyImage = new QAction(QObject::tr("Copy as Image"), QucsMain);
+                QObject::connect(actCopyImage, &QAction::triggered, [diagram]() {
+                  QApplication::clipboard()->setImage(diagram->toImage());
+                });
+                ComponentMenu->addAction(actCopyImage);
             }
         }
         break;

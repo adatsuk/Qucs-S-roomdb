@@ -191,6 +191,12 @@ void Ngspice::createNetlist(
                     }
                 }
             }
+            if (sim_typ == ".MC") {
+              QString mcSim = pc1->Props.at(0)->Value.toLower();
+              if (mcSim == sim_name) {
+                spiceNetlist.append(pc1->getNgspiceBeforeSim(sim_name));
+              }
+            }
         }
 
         if ( sim_typ == ".AC" ) {
@@ -369,6 +375,12 @@ void Ngspice::createNetlist(
                         spiceNetlist.append(getParentSWPscript(pc1, sim_name, false, hasDblSWP));
                     }
                 }
+            }
+            if (sim_typ == ".MC") {
+              QString mcSim = pc1->Props.at(0)->Value.toLower();
+              if (mcSim == sim_name) {
+                spiceNetlist.append(pc1->getNgspiceAfterSim(sim_name));
+              }
             }
         }
 

@@ -138,12 +138,17 @@ public:
   bool sameDependencies(Graph const*, Graph const*) const;
   int  checkColumnWidth(const QString&, const QFontMetrics&, int, int, int);
 
+  /// @brief Convert a diagram to image
+  /// @return QImage object
+  QImage toImage() const;
+
   virtual bool insideDiagram(float, float) const;
   bool insideDiagramP(Graph::iterator const& ) const;
   Marker* setMarker(int x, int y);
 
   QString Name; // identity of diagram type (e.g. Polar), used for saving etc.
   QPen    GridPen;
+  bool whiteBackground; // True: White background. False: Transparent background
 
   QList<Graph *>  Graphs;
   QList<qucs::Arc *>    Arcs;
@@ -180,6 +185,9 @@ protected:
 
 private:
   int Bounding_x1, Bounding_x2, Bounding_y1, Bounding_y2;
+
+  static const int DIAGRAM_MARGIN_TOP   = 15;
+  static const int DIAGRAM_MARGIN_RIGHT = 15;
 };
 
 #endif

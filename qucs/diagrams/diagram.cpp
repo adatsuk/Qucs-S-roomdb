@@ -91,6 +91,7 @@ Diagram::Diagram(int _cx, int _cy) {
     Type = isDiagram;
     isSelected = false;
     GridPen = QPen(Qt::lightGray, 0);
+    whiteBackground = false; // Transparent background
 }
 
 Diagram::~Diagram() {
@@ -112,6 +113,23 @@ void Diagram::paintDiagram(QPainter *painter) {
     painter->save();
 
     painter->translate(cx, cy);
+
+    if (whiteBackground) {
+      int bx1, by1, bx2, by2;
+      Bounding(bx1, by1, bx2, by2);
+
+      QRectF bgRect(bx1 - cx,
+                    by1 - cy - DIAGRAM_MARGIN_TOP,
+                    (bx2 - bx1) + DIAGRAM_MARGIN_RIGHT,
+                    (by2 - by1) + DIAGRAM_MARGIN_TOP);
+
+      painter->save();
+      painter->setPen(Qt::NoPen);
+      painter->setBrush(Qt::white);
+      painter->drawRect(bgRect);
+      painter->restore();
+    }
+
     painter->save();
 
     for (qucs::Line* line : std::as_const(Lines)) {
@@ -1262,6 +1280,7 @@ QString Diagram::save() {
     char c = '0';
     if (xAxis.GridOn) c |= 1;
     if (hideLines) c |= 2;
+    if (whiteBackground) c |= 4;
     s += c;
     s += " " + GridPen.color().name() + " " + QString::number(GridPen.style());
 
@@ -1333,10 +1352,11 @@ bool Diagram::load(const QString &Line, QTextStream *stream) {
     if (!ok) return false;
 
     char c;
-    n = s.section(' ', 5, 5);    // GridOn
+    n = s.section(' ', 5, 5);    // GridOn / hideLines / whiteBackground
     c = n.at(0).toLatin1() - '0';
     xAxis.GridOn = yAxis.GridOn = (c & 1) != 0;
     hideLines = (c & 2) != 0;
+    whiteBackground = (c & 4) != 0;
 
     n = s.section(' ', 6, 6);    // color for GridPen
     QColor co = misc::ColorFromString(n);
@@ -2033,7 +2053,27 @@ QRect Diagram::boundingRect() const noexcept
     return QRect{QPoint{x1_, y1_}, QPoint{x2_, y2_}}.normalized();
 }
 
-//void Diagram::SetLimitsBySelectionRect(QRectF) {}
+QImage Diagram::toImage() const {
+  // Bonding returns the diagram full coordinates, including the margin
+  // for the axis ticks
+  int bx1, by1, bx2, by2;
+  const_cast<Diagram*>(this)->Bounding(bx1, by1, bx2, by2);
 
+  // Size of the diagram + some room margin (static value)
+  QImage img(bx2 - bx1 + DIAGRAM_MARGIN_RIGHT,
+             by2 - by1 + DIAGRAM_MARGIN_TOP,
+             QImage::Format_ARGB32);
+  img.fill(Qt::white);
 
-// vim:ts=8:sw=2:noet
+  // Temporarily disable selection during render
+  bool wasSelected = isSelected;
+  const_cast<Diagram*>(this)->isSelected = false;
+
+  QPainter painter(&img);
+  painter.translate(-bx1, -by1 + DIAGRAM_MARGIN_TOP);
+  const_cast<Diagram*>(this)->paint(&painter);
+
+  const_cast<Diagram*>(this)->isSelected = wasSelected;
+
+  return img;
+}

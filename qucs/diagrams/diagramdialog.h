@@ -165,6 +165,7 @@ private:
   QSpinBox    *thicknessSpin, *precisionSpin;
   QCheckBox   *GridOn, *GridLogX, *GridLogY, *GridLogZ;
   QCheckBox   *manualX, *manualY, *manualZ, *hideInvisible;
+  QCheckBox   *WhiteBackground;
   QLineEdit   *startX, *stepX, *stopX;
   QLineEdit   *startY, *stepY, *stopY;
   QLineEdit   *startZ, *stepZ, *stopZ;

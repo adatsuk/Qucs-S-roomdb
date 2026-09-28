@@ -42,6 +42,9 @@ public:
   /// e.g. qucsator-RF, ngspice, xyce
   QVector<ValidationIssue> validate() const;
 
+  /// @brief Validate schematic structure on save, excluding simulation checks.
+  QVector<ValidationIssue> saveValidate() const;
+
   /// @brief Set simulation backend
   /// @param SimulationBackend Name of the backend simulator
   /// @details Used by Qucs-S main app to set the simulation backend for the validation
@@ -84,6 +87,10 @@ private:
   /// @brief SP/AC frequency sweep must not be a list if the simulation backend is ngspice or xyce
   /// @return A list of ValidationIssue entries..
   QVector<ValidationIssue> checkFrequencySweepType() const;
+
+  /// @brief MC runs count must be > 0
+  /// @return A list of ValidationIssue entries..
+  QVector<ValidationIssue> checkMCSimulation() const;
 
   /// @brief ngspice needs at least two AC power sources in SP simulation
   /// @return A list of ValidationIssue entries.

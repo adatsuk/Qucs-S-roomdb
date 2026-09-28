@@ -10,6 +10,7 @@ add_library(geometry STATIC
     "multi_point.h"
     "one_point.h"
     "shapes.h"
+    "arrow_head.h"
     )
 
 add_executable(test_geometry test_geometry.cpp)

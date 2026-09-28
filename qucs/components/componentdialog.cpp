@@ -822,8 +822,16 @@ void ComponentDialog::updatePropertyTable(const Component* updateComponent)
 
       // Check description for combo box options and create a combo box if found.
       QStringList options = getOptionsFromString(property->Description);
-      if (!options.isEmpty())
-      {
+
+      // Monte Carlo (.MC): the "Sim" property selects an existing .AC/.SP
+      // target, excluding targets already used by another active .MC or a .SW.
+      if (updateComponent->Model == ".MC" && property->Name == "Sim") {
+        QComboBox* mcSimCombo = new QComboBox();
+        mcSimCombo->addItems(getSimulationList(false));
+        mcSimCombo->setCurrentText(property->Value);
+        propertyTable->setCellWidget(row, 1, mcSimCombo);
+        propertyTable->setItem(row, 1, new QTableWidgetItem(ComboBoxCell));
+      } else if (!options.isEmpty()) {
         QComboBox* optionsCombo = new QComboBox();
         optionsCombo->addItems(options);
         optionsCombo->setCurrentText(property->Value);
@@ -1253,6 +1261,7 @@ QStringList ComponentDialog::getSimulationList(bool includeGeneric)
         if (c->Model == ".PZ") continue;
         if (c->Model == ".SENS") continue;
         if (c->Model == ".SENS_AC") continue;
+        if (c->Model == ".MC") continue;
         if (c->Model == ".SW" && !c->Props.at(0)->Value.toUpper().startsWith("DC") ) continue;
         sim_lst.append(c->Name);
     }

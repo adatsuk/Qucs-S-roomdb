@@ -41,7 +41,11 @@ void Ellips::draw(QPainter* painter) const {
 }
 
 void Polyline::draw(QPainter* painter) const {
-    painter->drawPolyline(points.data(), points.size());
+    if (brush.style() == Qt::NoBrush) {
+        painter->drawPolyline(points.data(), points.size());
+    } else {
+        painter->drawPolygon(points.data(), points.size());
+    }
 }
 
 bool Image::detectSvg(const QByteArray& data) {

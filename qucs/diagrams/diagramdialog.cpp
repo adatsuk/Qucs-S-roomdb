@@ -517,6 +517,12 @@ DiagramDialog::DiagramDialog(Diagram *d, QWidget *parent, Graph *currentGraph)
       NotationBox = 0;
     }
 
+    // Enable white background
+    WhiteBackground = new QCheckBox(tr("white background"), Tab2);
+    gp->addWidget(WhiteBackground, Row, 0);
+    Row++;
+    WhiteBackground->setChecked(Diag->whiteBackground);
+
     NotationLabel = new QLabel(tr("Number notation: "), Tab2);
     gp->addWidget(NotationLabel, Row, 0);
     NotationBox = new QComboBox(Tab2);
@@ -1523,6 +1529,12 @@ void DiagramDialog::slotApply() {
         Diag->yAxis.GridOn = GridOn->isChecked();
         changed = true;
       }
+    if (WhiteBackground) {
+      if (Diag->whiteBackground != WhiteBackground->isChecked()) {
+        Diag->whiteBackground = WhiteBackground->isChecked();
+        changed = true;
+      }
+    }
     if (GridColorButt)
       if (Diag->GridPen.color() !=
           misc::getWidgetBackgroundColor(GridColorButt)) {

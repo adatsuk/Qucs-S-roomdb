@@ -16,6 +16,7 @@
  ***************************************************************************/
 #include <cmath>
 
+#include "arrow_head.h"
 #include "component.h"
 #include "libcomp.h"
 #include "resistor.h"
@@ -1214,9 +1215,13 @@ int Component::analyseLine(const QString &Row, int numProps) {
         if (!getIntegers(Row, &i1, &i2, &i3, &i4, &i5, &i6)) return -1;
         if (!getPen(Row, Pen, 7)) return -1;
 
-        double beta = atan2(double(i6), double(i5));
-        double phi = atan2(double(i4), double(i3));
-        double Length = sqrt(double(i6 * i6 + i5 * i5));
+        QString headStyleStr = Row.section(' ', 10, 10);
+        bool filled = !headStyleStr.isEmpty() && headStyleStr.toInt() != 0;
+
+        double headHeight = i5;
+        double headWidth = i6;
+        double dx = i3;
+        double dy = i4;
 
         i3 += i1;
         i4 += i2;
@@ -1231,23 +1236,40 @@ int Component::analyseLine(const QString &Row, int numProps) {
 
         Lines.append(new qucs::Line(i1, i2, i3, i4, Pen));   // base line
 
-        double w = beta + phi;
-        i5 = i3 - int(Length * cos(w));
-        i6 = i4 - int(Length * sin(w));
-        Lines.append(new qucs::Line(i3, i4, i5, i6, Pen)); // arrow head
+        qucs_s::geom::ArrowHeadShape head = qucs_s::geom::computeArrowHeadShape(
+            i3, i4, dx, dy, headHeight, headWidth, filled);
+
+        i5 = i3 - int(head.wingOffset1.x);
+        i6 = i4 - int(head.wingOffset1.y);
+        if (!head.filled) {
+            Lines.append(new qucs::Line(i3, i4, i5, i6, Pen)); // arrow head
+        }
+        if (i5 < x1) x1 = i5;  // keep track of component boundings
+        if (i5 > x2) x2 = i5;
+        if (i6 < y1) y1 = i6;
+        if (i6 > y2) y2 = i6;
+        int wing1X = i5;
+        int wing1Y = i6;
+
+        i5 = i3 - int(head.wingOffset2.x);
+        i6 = i4 - int(head.wingOffset2.y);
+        if (!head.filled) {
+            Lines.append(new qucs::Line(i3, i4, i5, i6, Pen));
+        }
         if (i5 < x1) x1 = i5;  // keep track of component boundings
         if (i5 > x2) x2 = i5;
         if (i6 < y1) y1 = i6;
         if (i6 > y2) y2 = i6;
 
-        w = phi - beta;
-        i5 = i3 - int(Length * cos(w));
-        i6 = i4 - int(Length * sin(w));
-        Lines.append(new qucs::Line(i3, i4, i5, i6, Pen));
-        if (i5 < x1) x1 = i5;  // keep track of component boundings
-        if (i5 > x2) x2 = i5;
-        if (i6 < y1) y1 = i6;
-        if (i6 > y2) y2 = i6;
+        if (head.filled) {
+            std::vector<QPointF> headPoints{
+                QPointF(wing1X, wing1Y),
+                QPointF(i3, i4),
+                QPointF(i5, i6)
+            };
+            Polylines.append(new qucs::Polyline(
+                headPoints, Pen, QBrush(Pen.color())));
+        }
 
         return 1;
     } else if (s == "Ellipse") {

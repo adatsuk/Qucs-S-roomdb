@@ -88,6 +88,7 @@ private:
   int TextWidth, DragNDropWidth, TextHeight;
   int cx, cy, x1, x2, y1, y2;
   QList<qucs::Line *> Lines;
+  QList<qucs::Polyline *> Polylines;
   QList<qucs::Arc *> Arcs;
   QList<qucs::Rect *> Rects;
   QList<qucs::Ellips *> Ellipses;
