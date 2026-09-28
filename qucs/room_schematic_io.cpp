@@ -1,7 +1,7 @@
-#include "core_schematic_io.h"
+#include "room_schematic_io.h"
 
-#include "core_file_lock.h"
-#include "core_paths.h"
+#include "room_file_lock.h"
+#include "room_paths.h"
 #include "database.h"
 #include "primitive_resolver.h"
 #include "qucs_exporter.h"
@@ -17,22 +17,22 @@
 #include <algorithm>
 #include <cmath>
 
-namespace qucs_core {
+namespace qucs_room {
 
-bool g_coreBridgeActive = false;
+bool g_roomBridgeActive = false;
 
 namespace {
 
-core::QucsExporter::Options exporterOptionsFromEnvironment()
+room::QucsExporter::Options exporterOptionsFromEnvironment()
 {
-    core::QucsExporter::Options options;
+    room::QucsExporter::Options options;
     if (qEnvironmentVariableIsSet("LIBMAN_TECH_LIBRARY")) {
         options.techLibrary = qEnvironmentVariable("LIBMAN_TECH_LIBRARY").toStdString();
     }
     if (qEnvironmentVariableIsSet("QUCS_PRIMITIVE_LIB")) {
         options.qucsPrimitiveLib = qEnvironmentVariable("QUCS_PRIMITIVE_LIB").toStdString();
     }
-    for (const std::string &path : core::PrimitiveResolver::primitiveCorePathsFromEnvironment()) {
+    for (const std::string &path : room::PrimitiveResolver::primitiveCorePathsFromEnvironment()) {
         options.primitiveCorePaths.push_back(path);
     }
     return options;
@@ -301,14 +301,14 @@ void denormalizeSchCoordinates(const QString &schPath, qint64 divisor)
     file.write(schContent.toUtf8());
 }
 
-bool isCoreViewPath(const QString &path)
+bool isRoomViewPath(const QString &path)
 {
     const QString fileName = QFileInfo(path).fileName();
-    if (!fileName.endsWith(QStringLiteral(".core"), Qt::CaseInsensitive)) {
+    if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
         return false;
     }
 
-    const QString stem = fileName.left(fileName.size() - QStringLiteral(".core").size());
+    const QString stem = fileName.left(fileName.size() - QStringLiteral(".room").size());
     const int dot = stem.lastIndexOf(QLatin1Char('.'));
     if (dot <= 0) {
         return true;
@@ -316,35 +316,35 @@ bool isCoreViewPath(const QString &path)
 
     const QString viewName = normalizedViewSuffix(stem.mid(dot + 1));
     return viewName == QStringLiteral("schematic") || viewName == QStringLiteral("symbol")
-        || viewName == QStringLiteral("core") || viewName == QStringLiteral("layout");
+        || viewName == QStringLiteral("room") || viewName == QStringLiteral("layout");
 }
 
-bool isCoreSchematicPath(const QString &path)
+bool isRoomSchematicPath(const QString &path)
 {
     const QString fileName = QFileInfo(path).fileName();
-    if (!fileName.endsWith(QStringLiteral(".core"), Qt::CaseInsensitive)) {
+    if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
         return false;
     }
 
-    const QString stem = fileName.left(fileName.size() - QStringLiteral(".core").size());
+    const QString stem = fileName.left(fileName.size() - QStringLiteral(".room").size());
     const int dot = stem.lastIndexOf(QLatin1Char('.'));
     if (dot <= 0) {
         return true;
     }
 
     const QString viewName = normalizedViewSuffix(stem.mid(dot + 1));
-    return viewName == QStringLiteral("schematic") || viewName == QStringLiteral("core")
+    return viewName == QStringLiteral("schematic") || viewName == QStringLiteral("room")
         || viewName == QStringLiteral("layout");
 }
 
-bool isCoreSymbolPath(const QString &path)
+bool isRoomSymbolPath(const QString &path)
 {
     const QString fileName = QFileInfo(path).fileName();
-    if (!fileName.endsWith(QStringLiteral(".core"), Qt::CaseInsensitive)) {
+    if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
         return false;
     }
 
-    const QString stem = fileName.left(fileName.size() - QStringLiteral(".core").size());
+    const QString stem = fileName.left(fileName.size() - QStringLiteral(".room").size());
     const int dot = stem.lastIndexOf(QLatin1Char('.'));
     if (dot <= 0) {
         return false;
@@ -355,8 +355,8 @@ bool isCoreSymbolPath(const QString &path)
 
 QString documentBaseName(const QString &path)
 {
-    if (isCoreViewPath(path)) {
-        const QString cellName = cellNameFromCorePath(path);
+    if (isRoomViewPath(path)) {
+        const QString cellName = cellNameFromRoomPath(path);
         if (!cellName.isEmpty()) {
             return cellName;
         }
@@ -364,15 +364,15 @@ QString documentBaseName(const QString &path)
     return QFileInfo(path).completeBaseName();
 }
 
-QString cellNameFromCorePath(const QString &path)
+QString cellNameFromRoomPath(const QString &path)
 {
     const QFileInfo fi(path);
     const QString fileName = fi.fileName();
-    if (!fileName.endsWith(QStringLiteral(".core"), Qt::CaseInsensitive)) {
+    if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
         return fi.completeBaseName();
     }
 
-    const QString stem = fileName.left(fileName.size() - QStringLiteral(".core").size());
+    const QString stem = fileName.left(fileName.size() - QStringLiteral(".room").size());
     const int dot = stem.lastIndexOf(QLatin1Char('.'));
     if (dot <= 0) {
         return stem.trimmed();
@@ -383,36 +383,36 @@ QString cellNameFromCorePath(const QString &path)
         || viewName == QStringLiteral("symbol")
         || viewName == QStringLiteral("layout")
         || viewName == QStringLiteral("abstract")
-        || viewName == QStringLiteral("core")) {
+        || viewName == QStringLiteral("room")) {
         return stem.left(dot).trimmed();
     }
 
     return stem.trimmed();
 }
 
-IoResult exportCoreToSchFile(const QString &corePath, const QString &schPath)
+IoResult exportRoomToSchFile(const QString &roomPath, const QString &schPath)
 {
     IoResult result;
     try {
-        const core::Database db = core::Database::loadFromFile(corePath.toStdString());
-        const QString cellName = cellNameFromCorePath(corePath);
+        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
-            result.message = QObject::tr("Failed to determine cell name from CORE file.");
+            result.message = QObject::tr("Failed to determine cell name from ROOM file.");
             return result;
         }
 
-        const core::Cell *cell = db.lib().findCell(cellName.toStdString());
+        const room::Cell *cell = db.lib().findCell(cellName.toStdString());
         const std::string exportCellName =
             cell ? cellName.toStdString() : db.lib().cells().empty() ? std::string() : db.lib().cells().front().name();
         if (exportCellName.empty()) {
-            result.message = QObject::tr("CORE file contains no cells.");
+            result.message = QObject::tr("ROOM file contains no cells.");
             return result;
         }
 
-        core::QucsExporter exporter(exporterOptionsFromEnvironment());
+        room::QucsExporter exporter(exporterOptionsFromEnvironment());
         exporter.exportCell(db, exportCellName, schPath.toStdString());
         for (const std::string &warning : exporter.warnings()) {
-            qWarning() << "CORE export warning:" << QString::fromStdString(warning);
+            qWarning() << "ROOM export warning:" << QString::fromStdString(warning);
         }
         if (!exporter.errors().empty()) {
             result.message = QString::fromStdString(exporter.errors().front());
@@ -420,7 +420,7 @@ IoResult exportCoreToSchFile(const QString &corePath, const QString &schPath)
         }
 
         if (!QFileInfo::exists(schPath)) {
-            result.message = QObject::tr("CORE export did not create a schematic file.");
+            result.message = QObject::tr("ROOM export did not create a schematic file.");
             return result;
         }
 
@@ -432,29 +432,29 @@ IoResult exportCoreToSchFile(const QString &corePath, const QString &schPath)
     }
 }
 
-IoResult exportCoreSymbolToSchFile(const QString &corePath, const QString &schPath)
+IoResult exportRoomSymbolToSchFile(const QString &roomPath, const QString &schPath)
 {
     IoResult result;
     try {
-        const core::Database db = core::Database::loadFromFile(corePath.toStdString());
-        const QString cellName = cellNameFromCorePath(corePath);
+        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
-            result.message = QObject::tr("Failed to determine cell name from CORE file.");
+            result.message = QObject::tr("Failed to determine cell name from ROOM file.");
             return result;
         }
 
-        const core::Cell *cell = db.lib().findCell(cellName.toStdString());
+        const room::Cell *cell = db.lib().findCell(cellName.toStdString());
         const std::string exportCellName =
             cell ? cellName.toStdString() : db.lib().cells().empty() ? std::string() : db.lib().cells().front().name();
         if (exportCellName.empty()) {
-            result.message = QObject::tr("CORE file contains no cells.");
+            result.message = QObject::tr("ROOM file contains no cells.");
             return result;
         }
 
-        core::QucsExporter exporter;
+        room::QucsExporter exporter;
         exporter.exportSymbolCell(db, exportCellName, schPath.toStdString());
         for (const std::string &warning : exporter.warnings()) {
-            qWarning() << "CORE symbol export warning:" << QString::fromStdString(warning);
+            qWarning() << "ROOM symbol export warning:" << QString::fromStdString(warning);
         }
         if (!exporter.errors().empty()) {
             result.message = QString::fromStdString(exporter.errors().front());
@@ -462,7 +462,7 @@ IoResult exportCoreSymbolToSchFile(const QString &corePath, const QString &schPa
         }
 
         if (!QFileInfo::exists(schPath)) {
-            result.message = QObject::tr("CORE export did not create a symbol file.");
+            result.message = QObject::tr("ROOM export did not create a symbol file.");
             return result;
         }
 
@@ -474,46 +474,46 @@ IoResult exportCoreSymbolToSchFile(const QString &corePath, const QString &schPa
     }
 }
 
-IoResult exportCoreViewToFile(const QString &corePath, const QString &schPath)
+IoResult exportRoomViewToFile(const QString &roomPath, const QString &schPath)
 {
-    if (isCoreSymbolPath(corePath)) {
-        return exportCoreSymbolToSchFile(corePath, schPath);
+    if (isRoomSymbolPath(roomPath)) {
+        return exportRoomSymbolToSchFile(roomPath, schPath);
     }
-    return exportCoreToSchFile(corePath, schPath);
+    return exportRoomToSchFile(roomPath, schPath);
 }
 
-IoResult exportCoreViewToString(const QString &corePath, QString &schText)
+IoResult exportRoomViewToString(const QString &roomPath, QString &schText)
 {
     IoResult result;
     try {
-        const core::Database db = core::Database::loadFromFile(corePath.toStdString());
-        const QString cellName = cellNameFromCorePath(corePath);
+        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
-            result.message = QObject::tr("Failed to determine cell name from CORE file.");
+            result.message = QObject::tr("Failed to determine cell name from ROOM file.");
             return result;
         }
 
-        const core::Cell *cell = db.lib().findCell(cellName.toStdString());
+        const room::Cell *cell = db.lib().findCell(cellName.toStdString());
         const std::string exportCellName =
             cell ? cellName.toStdString() : db.lib().cells().empty() ? std::string() : db.lib().cells().front().name();
         if (exportCellName.empty()) {
-            result.message = QObject::tr("CORE file contains no cells.");
+            result.message = QObject::tr("ROOM file contains no cells.");
             return result;
         }
 
-        core::QucsExporter exporter(exporterOptionsFromEnvironment());
-        const std::string text = isCoreSymbolPath(corePath)
+        room::QucsExporter exporter(exporterOptionsFromEnvironment());
+        const std::string text = isRoomSymbolPath(roomPath)
                                      ? exporter.exportSymbolCellToString(db, exportCellName)
                                      : exporter.exportCellToString(db, exportCellName);
         for (const std::string &warning : exporter.warnings()) {
-            qWarning() << "CORE export warning:" << QString::fromStdString(warning);
+            qWarning() << "ROOM export warning:" << QString::fromStdString(warning);
         }
         if (!exporter.errors().empty()) {
             result.message = QString::fromStdString(exporter.errors().front());
             return result;
         }
         if (text.empty()) {
-            result.message = QObject::tr("CORE export produced empty schematic data.");
+            result.message = QObject::tr("ROOM export produced empty schematic data.");
             return result;
         }
 
@@ -526,40 +526,40 @@ IoResult exportCoreViewToString(const QString &corePath, QString &schText)
     }
 }
 
-IoResult importSchStringToCore(const QString &schText, const QString &corePath)
+IoResult importSchStringToRoom(const QString &schText, const QString &roomPath)
 {
     IoResult result;
-    const CoreFileLockInfo lockInfo = readCoreLockFile(corePath);
-    if (lockInfo.present && !isStaleCoreLock(lockInfo) && !isCoreLockHeldByCurrentProcess(lockInfo)
-        && coreLockRefCount(QFileInfo(corePath).absoluteFilePath()) == 0) {
-        result.message = QObject::tr("Cannot import: %1").arg(formatCoreLockStatusLine(lockInfo));
+    const RoomFileLockInfo lockInfo = readRoomLockFile(roomPath);
+    if (lockInfo.present && !isStaleRoomLock(lockInfo) && !isRoomLockHeldByCurrentProcess(lockInfo)
+        && roomLockRefCount(QFileInfo(roomPath).absoluteFilePath()) == 0) {
+        result.message = QObject::tr("Cannot import: %1").arg(formatRoomLockStatusLine(lockInfo));
         return result;
     }
 
     try {
-        core::QucsImporter::Options opts;
+        room::QucsImporter::Options opts;
         opts.libName = "qucs_s";
-        opts.cellName = cellNameFromCorePath(corePath).toStdString();
-        core::QucsImporter importer(opts);
-        core::Database db = importer.importText(schText.toStdString(), opts.cellName);
+        opts.cellName = cellNameFromRoomPath(roomPath).toStdString();
+        room::QucsImporter importer(opts);
+        room::Database db = importer.importText(schText.toStdString(), opts.cellName);
         for (const std::string &warning : importer.warnings()) {
-            qWarning() << "CORE import warning:" << QString::fromStdString(warning);
+            qWarning() << "ROOM import warning:" << QString::fromStdString(warning);
         }
         if (!importer.errors().empty()) {
             result.message = QString::fromStdString(importer.errors().front());
             return result;
         }
 
-        const core::ParsedCorePath parsed = core::parseCoreFilePath(corePath.toStdString());
-        const core::ViewType viewType =
-            parsed.valid ? parsed.view : isCoreSymbolPath(corePath) ? core::ViewType::Symbol : core::ViewType::Schematic;
+        const room::ParsedRoomPath parsed = room::parseRoomFilePath(roomPath.toStdString());
+        const room::ViewType viewType =
+            parsed.valid ? parsed.view : isRoomSymbolPath(roomPath) ? room::ViewType::Symbol : room::ViewType::Schematic;
 
-        db.setGenerator("CORE qucs_s");
+        db.setGenerator("ROOM qucs_s");
         db.setTechnology("qucs");
-        db.saveToFile(corePath.toStdString(), viewType);
+        db.saveToFile(roomPath.toStdString(), viewType);
 
-        if (!QFileInfo::exists(corePath)) {
-            result.message = QObject::tr("CORE save did not create an output file.");
+        if (!QFileInfo::exists(roomPath)) {
+            result.message = QObject::tr("ROOM save did not create an output file.");
             return result;
         }
 
@@ -571,40 +571,40 @@ IoResult importSchStringToCore(const QString &schText, const QString &corePath)
     }
 }
 
-IoResult importSchFileToCore(const QString &schPath, const QString &corePath)
+IoResult importSchFileToRoom(const QString &schPath, const QString &roomPath)
 {
     IoResult result;
-    const CoreFileLockInfo lockInfo = readCoreLockFile(corePath);
-    if (lockInfo.present && !isStaleCoreLock(lockInfo) && !isCoreLockHeldByCurrentProcess(lockInfo)
-        && coreLockRefCount(QFileInfo(corePath).absoluteFilePath()) == 0) {
-        result.message = QObject::tr("Cannot import: %1").arg(formatCoreLockStatusLine(lockInfo));
+    const RoomFileLockInfo lockInfo = readRoomLockFile(roomPath);
+    if (lockInfo.present && !isStaleRoomLock(lockInfo) && !isRoomLockHeldByCurrentProcess(lockInfo)
+        && roomLockRefCount(QFileInfo(roomPath).absoluteFilePath()) == 0) {
+        result.message = QObject::tr("Cannot import: %1").arg(formatRoomLockStatusLine(lockInfo));
         return result;
     }
 
     try {
-        core::QucsImporter::Options opts;
+        room::QucsImporter::Options opts;
         opts.libName = "qucs_s";
-        opts.cellName = cellNameFromCorePath(corePath).toStdString();
-        core::QucsImporter importer(opts);
-        core::Database db = importer.importFile(schPath.toStdString());
+        opts.cellName = cellNameFromRoomPath(roomPath).toStdString();
+        room::QucsImporter importer(opts);
+        room::Database db = importer.importFile(schPath.toStdString());
         for (const std::string &warning : importer.warnings()) {
-            qWarning() << "CORE import warning:" << QString::fromStdString(warning);
+            qWarning() << "ROOM import warning:" << QString::fromStdString(warning);
         }
         if (!importer.errors().empty()) {
             result.message = QString::fromStdString(importer.errors().front());
             return result;
         }
 
-        const core::ParsedCorePath parsed = core::parseCoreFilePath(corePath.toStdString());
-        const core::ViewType viewType =
-            parsed.valid ? parsed.view : isCoreSymbolPath(corePath) ? core::ViewType::Symbol : core::ViewType::Schematic;
+        const room::ParsedRoomPath parsed = room::parseRoomFilePath(roomPath.toStdString());
+        const room::ViewType viewType =
+            parsed.valid ? parsed.view : isRoomSymbolPath(roomPath) ? room::ViewType::Symbol : room::ViewType::Schematic;
 
-        db.setGenerator("CORE qucs_s");
+        db.setGenerator("ROOM qucs_s");
         db.setTechnology("qucs");
-        db.saveToFile(corePath.toStdString(), viewType);
+        db.saveToFile(roomPath.toStdString(), viewType);
 
-        if (!QFileInfo::exists(corePath)) {
-            result.message = QObject::tr("CORE save did not create an output file.");
+        if (!QFileInfo::exists(roomPath)) {
+            result.message = QObject::tr("ROOM save did not create an output file.");
             return result;
         }
 
@@ -616,4 +616,4 @@ IoResult importSchFileToCore(const QString &schPath, const QString &corePath)
     }
 }
 
-} // namespace qucs_core
+} // namespace qucs_room

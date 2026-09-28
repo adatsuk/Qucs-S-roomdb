@@ -30,10 +30,10 @@
 #include "paintings/paintings.h"
 #include "schematic.h"
 
-#ifdef QUCS_ENABLE_CORE
-#include "core_file_lock.h"
-#include "core_lock_integration.h"
-#include "core_schematic_io.h"
+#ifdef QUCS_ENABLE_ROOM
+#include "room_file_lock.h"
+#include "room_lock_integration.h"
+#include "room_schematic_io.h"
 #endif
 #include "settings.h"
 #include "textdoc.h"
@@ -131,8 +131,8 @@ Schematic::Schematic(QucsApp *App_, const QString &Name_) :
 
 Schematic::~Schematic()
 {
-#ifdef QUCS_ENABLE_CORE
-    releaseHeldCoreLock();
+#ifdef QUCS_ENABLE_ROOM
+    releaseHeldRoomLock();
 #endif
 }
 
@@ -186,14 +186,14 @@ void Schematic::becomeCurrent(bool update)
 {
     emit signalCursorPosChanged(0, 0, "");
 
-#ifdef QUCS_ENABLE_CORE
-    if (a_coreViewOnly && a_App != nullptr) {
+#ifdef QUCS_ENABLE_ROOM
+    if (a_roomViewOnly && a_App != nullptr) {
         a_App->select->setChecked(true);
         a_App->MouseMoveAction = nullptr;
         a_App->MousePressAction = &MouseActions::MPressSelect;
         a_App->MouseReleaseAction = &MouseActions::MReleaseSelect;
         a_App->MouseDoubleClickAction = &MouseActions::MDoubleClickSelect;
-        a_App->updateCoreLockUi(this);
+        a_App->updateRoomLockUi(this);
     }
 #endif
 
@@ -222,8 +222,8 @@ void Schematic::becomeCurrent(bool update)
         // symbol file, then there is no need to create a subcircuit
         // symbol, a symbol is already there.
         const bool symbolOnlyDocument = a_isSymbolOnly || a_DocName.endsWith(".sym")
-#ifdef QUCS_ENABLE_CORE
-            || qucs_core::isCoreSymbolPath(a_DocName)
+#ifdef QUCS_ENABLE_ROOM
+            || qucs_room::isRoomSymbolPath(a_DocName)
 #endif
             ;
         if (!symbolOnlyDocument && createSubcircuitSymbol()) {
@@ -252,8 +252,8 @@ void Schematic::setName(const QString &Name_)
 {
     a_DocName = Name_;
     QFileInfo Info(a_DocName);
-#ifdef QUCS_ENABLE_CORE
-    QString base = qucs_core::documentBaseName(a_DocName);
+#ifdef QUCS_ENABLE_ROOM
+    QString base = qucs_room::documentBaseName(a_DocName);
 #else
     QString base = Info.completeBaseName();
 #endif
@@ -270,8 +270,8 @@ void Schematic::setName(const QString &Name_)
 // Sets the document to be changed or not to be changed.
 void Schematic::setChanged(bool c, bool fillStack, char Op)
 {
-#ifdef QUCS_ENABLE_CORE
-    if (a_coreViewOnly && c) {
+#ifdef QUCS_ENABLE_ROOM
+    if (a_roomViewOnly && c) {
         return;
     }
 #endif
@@ -631,8 +631,8 @@ void Schematic::PostPaintEvent(
 // ---------------------------------------------------
 void Schematic::contentsMouseMoveEvent(QMouseEvent *Event)
 {
-#ifdef QUCS_ENABLE_CORE
-    if (a_coreViewOnly && Event->buttons().testFlag(Qt::LeftButton)
+#ifdef QUCS_ENABLE_ROOM
+    if (a_roomViewOnly && Event->buttons().testFlag(Qt::LeftButton)
         && a_App->MouseMoveAction != nullptr) {
         return;
     }
@@ -704,39 +704,39 @@ void Schematic::contentsMouseMoveEvent(QMouseEvent *Event)
         (a_App->view->*(a_App->MouseMoveAction))(this, Event);
 }
 
-#ifdef QUCS_ENABLE_CORE
-void Schematic::configureCoreLockState(bool viewOnly, bool lockHeld, const QString &corePath,
+#ifdef QUCS_ENABLE_ROOM
+void Schematic::configureRoomLockState(bool viewOnly, bool lockHeld, const QString &roomPath,
                                      const QString &status)
 {
-    a_coreViewOnly = viewOnly;
-    a_coreLockHeld = lockHeld;
-    a_coreLockPath = QFileInfo(corePath).absoluteFilePath();
-    a_coreLockStatus = status;
+    a_roomViewOnly = viewOnly;
+    a_roomLockHeld = lockHeld;
+    a_roomLockPath = QFileInfo(roomPath).absoluteFilePath();
+    a_roomLockStatus = status;
 }
 
-void Schematic::releaseHeldCoreLock()
+void Schematic::releaseHeldRoomLock()
 {
-    if (!a_coreLockHeld || a_coreLockPath.isEmpty()) {
+    if (!a_roomLockHeld || a_roomLockPath.isEmpty()) {
         return;
     }
 
-    const QString path = a_coreLockPath;
-    a_coreLockHeld = false;
-    qucs_core::releaseCoreLockOnClose(path);
+    const QString path = a_roomLockPath;
+    a_roomLockHeld = false;
+    qucs_room::releaseRoomLockOnClose(path);
 
     if (a_App != nullptr) {
-        a_App->unwatchCoreLockFile(path);
+        a_App->unwatchRoomLockFile(path);
     }
 }
 
-void Schematic::dropCoreLockOwnership()
+void Schematic::dropRoomLockOwnership()
 {
-    if (!a_coreLockHeld || a_coreLockPath.isEmpty()) {
+    if (!a_roomLockHeld || a_roomLockPath.isEmpty()) {
         return;
     }
 
-    a_coreLockHeld = false;
-    qucs_core::releaseCoreLockOnClose(a_coreLockPath);
+    a_roomLockHeld = false;
+    qucs_room::releaseRoomLockOnClose(a_roomLockPath);
 }
 #endif
 
@@ -745,8 +745,8 @@ void Schematic::contentsMousePressEvent(QMouseEvent *Event)
 {
     a_App->editText->setHidden(true); // disable text edit of component property
     this->setFocus();
-#ifdef QUCS_ENABLE_CORE
-    if (a_coreViewOnly) {
+#ifdef QUCS_ENABLE_ROOM
+    if (a_roomViewOnly) {
         if (Event->button() == Qt::MiddleButton) {
             a_previousCursorPosition = contentsToViewport(Event->pos());
             setCursor(Qt::ClosedHandCursor);
@@ -817,8 +817,8 @@ void Schematic::contentsMouseReleaseEvent(QMouseEvent *Event)
 // -----------------------------------------------------------
 void Schematic::contentsMouseDoubleClickEvent(QMouseEvent *Event)
 {
-#ifdef QUCS_ENABLE_CORE
-    if (a_coreViewOnly) {
+#ifdef QUCS_ENABLE_ROOM
+    if (a_roomViewOnly) {
         return;
     }
 #endif
@@ -1416,8 +1416,8 @@ void Schematic::copy()
 // Cut function, copy followed by deletion
 void Schematic::cut()
 {
-#ifdef QUCS_ENABLE_CORE
-    if (a_coreViewOnly) {
+#ifdef QUCS_ENABLE_ROOM
+    if (a_roomViewOnly) {
         return;
     }
 #endif
@@ -1430,8 +1430,8 @@ void Schematic::cut()
 // Performs paste function from clipboard
 bool Schematic::paste(QTextStream *stream, std::list<Element*> *pe)
 {
-#ifdef QUCS_ENABLE_CORE
-    if (a_coreViewOnly) {
+#ifdef QUCS_ENABLE_ROOM
+    if (a_roomViewOnly) {
         return false;
     }
 #endif
@@ -1451,9 +1451,9 @@ bool Schematic::load()
 
     if (!loadDocument())
         return false;
-#ifdef QUCS_ENABLE_CORE
-    if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
-        qucs_core::finalizeCoreDocumentLock(this, a_App);
+#ifdef QUCS_ENABLE_ROOM
+    if (!qucs_room::g_roomBridgeActive && qucs_room::isRoomViewPath(a_DocName)) {
+        qucs_room::finalizeRoomDocumentLock(this, a_App);
     }
 #endif
     a_lastSaved = QDateTime::currentDateTime();
@@ -2153,8 +2153,8 @@ void Schematic::slotScrollRight()
 // Is called if an object is dropped (after drag'n drop).
 void Schematic::contentsDropEvent(QDropEvent *Event)
 {
-#ifdef QUCS_ENABLE_CORE
-  if (a_coreViewOnly) {
+#ifdef QUCS_ENABLE_ROOM
+  if (a_roomViewOnly) {
     Event->ignore();
     return;
   }
@@ -2311,9 +2311,9 @@ bool Schematic::checkDplAndDatNames()
     QFileInfo Info(a_DocName);
     if (!a_DocName.isEmpty() && a_DataSet.size() > 4 && a_DataDisplay.size() > 4) {
         QString base = Info.completeBaseName();
-#ifdef QUCS_ENABLE_CORE
-        if (qucs_core::isCoreViewPath(a_DocName)) {
-            const QString cellName = qucs_core::cellNameFromCorePath(a_DocName);
+#ifdef QUCS_ENABLE_ROOM
+        if (qucs_room::isRoomViewPath(a_DocName)) {
+            const QString cellName = qucs_room::cellNameFromRoomPath(a_DocName);
             if (!cellName.isEmpty()) {
                 base = cellName;
             }
@@ -2324,8 +2324,8 @@ bool Schematic::checkDplAndDatNames()
         QString base_dpl = a_DataDisplay;
         base_dpl.chop(4);
         if (base != base_dat || base != base_dpl) {
-#ifdef QUCS_ENABLE_CORE
-            if (qucs_core::isCoreViewPath(a_DocName)) {
+#ifdef QUCS_ENABLE_ROOM
+            if (qucs_room::isRoomViewPath(a_DocName)) {
                 a_DataSet = base + ".dat";
                 a_DataDisplay = base + ".dpl";
                 return true;

@@ -40,7 +40,7 @@ endif()
 message(STATUS "${PROJECT_NAME} ${CMAKE_INSTALL_PREFIX} ${qucs-suite_BINARY_DIR}" )
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
-set(QT_VERSION ${Qt6Core_VERSION})
+set(QT_VERSION ${Qt6Room_VERSION})
 
 message(STATUS "Qt Version: " ${QT_VERSION})
 
@@ -53,10 +53,10 @@ endif()
 
 enable_testing()
 
-option(QUCS_ENABLE_CORE "Enable CORE (.core) schematic import/export" ON)
-if(QUCS_ENABLE_CORE)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchCore.cmake")
-    add_compile_definitions(QUCS_ENABLE_CORE=1)
+option(QUCS_ENABLE_ROOM "Enable ROOM (.room) schematic import/export" ON)
+if(QUCS_ENABLE_ROOM)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchRoom.cmake")
+    add_compile_definitions(QUCS_ENABLE_ROOM=1)
 endif()
 
 add_subdirectory( qucs )

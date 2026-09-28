@@ -8,27 +8,27 @@ on:
 
 jobs:
   build-qucs-s-rocky8:
-    name: qucs-s + CORE (Rocky Linux 8)
+    name: qucs-s + ROOM (Rocky Linux 8)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
       image: rockylinux:8
 
     steps:
-      - name: Checkout Qucs-S-coredb
+      - name: Checkout Qucs-S-roomdb
         uses: actions/checkout@v4
         with:
-          path: Qucs-S-coredb
+          path: Qucs-S-roomdb
 
       - name: Checkout CommonDB
         uses: actions/checkout@v4
         with:
-          repository: IHP-GmbH/CommonDB
+          repository: IHP-GmbH/Room
           path: CommonDB
           token: ${{ secrets.GH_PAT }}
 
       - name: Install dependencies
-        run: bash Qucs-S-coredb/scripts/ci-rocky8-deps.sh
+        run: bash Qucs-S-roomdb/scripts/ci-rocky8-deps.sh
 
       - name: Cache Cap'n Proto (Linux)
         uses: actions/cache@v4
@@ -50,45 +50,45 @@ jobs:
       - name: Configure and build qucs-s
         run: |
           COMMONDB_ROOT="$GITHUB_WORKSPACE/CommonDB"
-          cmake -S Qucs-S-coredb -B Qucs-S-coredb/build -G Ninja \
+          cmake -S Qucs-S-roomdb -B Qucs-S-roomdb/build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install" \
-            -DQUCS_CORE_SOURCE_DIR="$COMMONDB_ROOT" \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/Qucs-S-roomdb/dist-install" \
+            -DQUCS_ROOM_SOURCE_DIR="$COMMONDB_ROOT" \
             -DCAPNP_ROOT="$COMMONDB_ROOT/third_party/capnp-install-linux"
-          cmake --build Qucs-S-coredb/build --target qucs-s translations -j"$(nproc)"
+          cmake --build Qucs-S-roomdb/build --target qucs-s translations -j"$(nproc)"
 
       - name: Install qucs-s payload
         run: |
-          BUILD="Qucs-S-coredb/build"
-          PREFIX="$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install"
-          # Install only qucs-s + CORE (skip satellite GUI tools not built in CI).
+          BUILD="Qucs-S-roomdb/build"
+          PREFIX="$GITHUB_WORKSPACE/Qucs-S-roomdb/dist-install"
+          # Install only qucs-s + ROOM (skip satellite GUI tools not built in CI).
           cmake --install "$BUILD/_deps/commondb-build" --prefix "$PREFIX"
           cmake --install "$BUILD/qucs" --prefix "$PREFIX"
           cmake --install "$BUILD/library" --prefix "$PREFIX"
           cmake --install "$BUILD/translations" --prefix "$PREFIX"
 
       - name: Verify binary
-        run: test -x "$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install/bin/qucs-s"
+        run: test -x "$GITHUB_WORKSPACE/Qucs-S-roomdb/dist-install/bin/qucs-s"
 
       - name: Install linuxdeployqt
-        run: bash Qucs-S-coredb/scripts/ci_install_linuxdeployqt.sh
+        run: bash Qucs-S-roomdb/scripts/ci_install_linuxdeployqt.sh
 
       - name: Package portable bundle
         env:
           QT_DIR: /opt/qt/6.5.3/gcc_64
         run: |
           export CAPNP_ROOT="$GITHUB_WORKSPACE/CommonDB/third_party/capnp-install-linux"
-          sed -i 's/\r$//' Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh
-          bash Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh \
-            Qucs-S-coredb/dist-install \
-            Qucs-S-coredb/qucs-s-rocky8-bundle.tar.gz \
+          sed -i 's/\r$//' Qucs-S-roomdb/scripts/package_qucs_linux_bundle.sh
+          bash Qucs-S-roomdb/scripts/package_qucs_linux_bundle.sh \
+            Qucs-S-roomdb/dist-install \
+            Qucs-S-roomdb/qucs-s-rocky8-bundle.tar.gz \
             "Rocky Linux 8"
 
       - name: Upload qucs-s bundle
         uses: actions/upload-artifact@v4
         with:
           name: qucs-s-rocky8
-          path: Qucs-S-coredb/qucs-s-rocky8-bundle.tar.gz
+          path: Qucs-S-roomdb/qucs-s-rocky8-bundle.tar.gz
 
   build-ubuntu24:
     name: build-ubuntu24
@@ -96,23 +96,23 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      - name: Checkout Qucs-S-coredb
+      - name: Checkout Qucs-S-roomdb
         uses: actions/checkout@v4
         with:
-          path: Qucs-S-coredb
+          path: Qucs-S-roomdb
 
       - name: Checkout CommonDB
         uses: actions/checkout@v4
         with:
-          repository: IHP-GmbH/CommonDB
+          repository: IHP-GmbH/Room
           path: CommonDB
           token: ${{ secrets.GH_PAT }}
 
       - name: Verify CommonDB checkout
-        run: test -f CommonDB/src/core_paths.h
+        run: test -f CommonDB/src/room_paths.h
 
       - name: Install dependencies
-        run: bash Qucs-S-coredb/scripts/ci-ubuntu24-deps.sh
+        run: bash Qucs-S-roomdb/scripts/ci-ubuntu24-deps.sh
 
       - name: Cache Cap'n Proto (Linux)
         uses: actions/cache@v4
@@ -137,26 +137,26 @@ jobs:
         run: |
           COMMONDB_ROOT="$GITHUB_WORKSPACE/CommonDB"
           export PATH="${QT_DIR}/bin:${PATH}"
-          cmake -S Qucs-S-coredb -B Qucs-S-coredb/build -G Ninja \
+          cmake -S Qucs-S-roomdb -B Qucs-S-roomdb/build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install" \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/Qucs-S-roomdb/dist-install" \
             -DCMAKE_PREFIX_PATH="${QT_DIR}" \
             -DQt6_DIR="${QT_DIR}/lib/cmake/Qt6" \
-            -DQUCS_CORE_SOURCE_DIR="$COMMONDB_ROOT" \
+            -DQUCS_ROOM_SOURCE_DIR="$COMMONDB_ROOT" \
             -DCAPNP_ROOT="$COMMONDB_ROOT/third_party/capnp-install-linux"
-          cmake --build Qucs-S-coredb/build --target qucs-s translations -j"$(nproc)"
+          cmake --build Qucs-S-roomdb/build --target qucs-s translations -j"$(nproc)"
 
       - name: Install qucs-s payload
         run: |
-          BUILD="Qucs-S-coredb/build"
-          PREFIX="$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install"
+          BUILD="Qucs-S-roomdb/build"
+          PREFIX="$GITHUB_WORKSPACE/Qucs-S-roomdb/dist-install"
           cmake --install "$BUILD/_deps/commondb-build" --prefix "$PREFIX"
           cmake --install "$BUILD/qucs" --prefix "$PREFIX"
           cmake --install "$BUILD/library" --prefix "$PREFIX"
           cmake --install "$BUILD/translations" --prefix "$PREFIX"
 
       - name: Verify binary
-        run: test -x "$GITHUB_WORKSPACE/Qucs-S-coredb/dist-install/bin/qucs-s"
+        run: test -x "$GITHUB_WORKSPACE/Qucs-S-roomdb/dist-install/bin/qucs-s"
 
       - name: Package portable bundle
         env:
@@ -164,17 +164,17 @@ jobs:
           BUNDLE_SKIP_LINUXDEPLOYQT: "1"
         run: |
           export CAPNP_ROOT="$GITHUB_WORKSPACE/CommonDB/third_party/capnp-install-linux"
-          sed -i 's/\r$//' Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh Qucs-S-coredb/scripts/bundle_qt_libs_manual.sh
-          bash Qucs-S-coredb/scripts/package_qucs_linux_bundle.sh \
-            Qucs-S-coredb/dist-install \
-            Qucs-S-coredb/qucs-s-ubuntu24-bundle.tar.gz \
+          sed -i 's/\r$//' Qucs-S-roomdb/scripts/package_qucs_linux_bundle.sh Qucs-S-roomdb/scripts/bundle_qt_libs_manual.sh
+          bash Qucs-S-roomdb/scripts/package_qucs_linux_bundle.sh \
+            Qucs-S-roomdb/dist-install \
+            Qucs-S-roomdb/qucs-s-ubuntu24-bundle.tar.gz \
             "Ubuntu 24.04"
 
       - name: Smoke-test bundled binary (headless)
         run: |
           set -euxo pipefail
-          tar -xzf Qucs-S-coredb/qucs-s-ubuntu24-bundle.tar.gz -C Qucs-S-coredb
-          if ! timeout 8s xvfb-run -a Qucs-S-coredb/dist-bundle/qucs-s-run.sh -platform offscreen; then
+          tar -xzf Qucs-S-roomdb/qucs-s-ubuntu24-bundle.tar.gz -C Qucs-S-roomdb
+          if ! timeout 8s xvfb-run -a Qucs-S-roomdb/dist-bundle/qucs-s-run.sh -platform offscreen; then
             status=$?
             if [[ "${status}" -ne 124 ]]; then
               echo "Smoke test failed with exit ${status}" >&2
@@ -186,5 +186,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: qucs-s-ubuntu24
-          path: Qucs-S-coredb/qucs-s-ubuntu24-bundle.tar.gz
+          path: Qucs-S-roomdb/qucs-s-ubuntu24-bundle.tar.gz
           retention-days: 14

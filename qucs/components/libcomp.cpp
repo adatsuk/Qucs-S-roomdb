@@ -24,17 +24,17 @@
 #include "extsimkernels/abstractspicekernel.h"
 #include "schematic.h"
 
-#ifdef QUCS_ENABLE_CORE
-#include "core_block_mapper.h"
-#include "core_primitive_symbol.h"
-#include "core_schematic_io.h"
+#ifdef QUCS_ENABLE_ROOM
+#include "room_block_mapper.h"
+#include "room_primitive_symbol.h"
+#include "room_schematic_io.h"
 #endif
 
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 
 
-#ifdef QUCS_ENABLE_CORE
+#ifdef QUCS_ENABLE_ROOM
 namespace {
 
 QString repairInverterSubcktWiring(const QString &subText)
@@ -393,25 +393,25 @@ int LibComp::loadSymbol()
 {
   int z, Result;
   QString FileString, Line;
-#ifdef QUCS_ENABLE_CORE
-  // Prefer CORE/commonLib (and PDK) symbol geometry when attached — pin centers must match
-  // schematic wires stored on CORE/Xschem terminals, not legacy Qucs .lib artwork.
+#ifdef QUCS_ENABLE_ROOM
+  // Prefer ROOM/commonLib (and PDK) symbol geometry when attached — pin centers must match
+  // schematic wires stored on ROOM/Xschem terminals, not legacy Qucs .lib artwork.
   {
-    QString coreSymbol;
+    QString roomSymbol;
     QString hint;
     if (containingSchematic) {
       hint = containingSchematic->getDocName();
     }
     const QString libName = Props.size() > 0 ? Props.at(0)->Value : QString();
     const QString cellName = Props.size() > 1 ? Props.at(1)->Value : QString();
-    const bool hierCell = qucs_core::tryLoadCoreCellSymbol(libName, cellName, coreSymbol, hint);
+    const bool hierCell = qucs_room::tryLoadRoomCellSymbol(libName, cellName, roomSymbol, hint);
     if (hierCell) {
-      // Hierarchical CORE cells (module_*/inverter): PortSym pin count/order from cell.symbol.core.
-      FileString = coreSymbol;
+      // Hierarchical ROOM cells (module_*/inverter): PortSym pin count/order from cell.symbol.room.
+      FileString = roomSymbol;
       z = 0;
-    } else if (qucs_core::tryLoadCorePrimitiveSymbol(cellName, coreSymbol)) {
-      // Xschem/CORE wires attach to native PDK symbol pins (analogLib interop).
-      FileString = coreSymbol;
+    } else if (qucs_room::tryLoadRoomPrimitiveSymbol(cellName, roomSymbol)) {
+      // Xschem/ROOM wires attach to native PDK symbol pins (analogLib interop).
+      FileString = roomSymbol;
       z = 0;
     } else {
       z = loadSection("Symbol", FileString);
@@ -475,22 +475,22 @@ bool LibComp::createSubNetlist(QTextStream *stream, QStringList &FileList,
   QString FileString;
   QStringList Includes;
 
-#ifdef QUCS_ENABLE_CORE
-  // Hierarchical CORE cell (e.g. module_0_foundations/inverter): emit .SUBCKT from schematic.core.
+#ifdef QUCS_ENABLE_ROOM
+  // Hierarchical ROOM cell (e.g. module_0_foundations/inverter): emit .SUBCKT from schematic.room.
   if ((type & 8) || (type & 16)) {
-    QString coreSch;
+    QString roomSch;
     QString hint;
     if (containingSchematic) {
       hint = containingSchematic->getDocName();
     }
     if (Props.size() >= 2
-        && qucs_core::tryResolveCoreSchematic(Props.at(0)->Value, Props.at(1)->Value, coreSch, hint)) {
-      Schematic *d = new Schematic(nullptr, coreSch);
+        && qucs_room::tryResolveRoomSchematic(Props.at(0)->Value, Props.at(1)->Value, roomSch, hint)) {
+      Schematic *d = new Schematic(nullptr, roomSch);
       QString schText;
-      const qucs_core::IoResult exported = qucs_core::exportCoreViewToString(coreSch, schText);
+      const qucs_room::IoResult exported = qucs_room::exportRoomViewToString(roomSch, schText);
       const bool loaded = exported.ok && d->loadDocumentFromText(schText);
       if (loaded) {
-        qucs_core::repairCoreSchematicConnectivity(d);
+        qucs_room::repairRoomSchematicConnectivity(d);
         for (Component *pc : d->a_DocComps) {
           if (pc) {
             pc->setSchematic(d);
@@ -505,8 +505,8 @@ bool LibComp::createSubNetlist(QTextStream *stream, QStringList &FileList,
         }
         const QString libName = Props.size() > 0 ? Props.at(0)->Value : QString();
         const QString cellName = Props.size() > 1 ? Props.at(1)->Value : QString();
-        if (!qucs_core::tryLoadCoreCellSymbol(libName, cellName, symSection, hint)
-            && !qucs_core::tryLoadCorePrimitiveSymbol(cellName, symSection)) {
+        if (!qucs_room::tryLoadRoomCellSymbol(libName, cellName, symSection, hint)
+            && !qucs_room::tryLoadRoomPrimitiveSymbol(cellName, symSection)) {
           symSection.clear();
         }
         if (!symSection.isEmpty()) {
@@ -695,20 +695,20 @@ QString LibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
 
     QString s = SpiceModel + Name;
     bool prependImplicitGnd = false;
-#ifdef QUCS_ENABLE_CORE
-    QString coreSch;
+#ifdef QUCS_ENABLE_ROOM
+    QString roomSch;
     QString hint;
     if (containingSchematic) {
         hint = containingSchematic->getDocName();
     }
-    const bool isCoreHierarchy = Props.size() >= 2
-        && qucs_core::tryResolveCoreSchematic(Props.at(0)->Value, Props.at(1)->Value, coreSch, hint);
+    const bool isRoomHierarchy = Props.size() >= 2
+        && qucs_room::tryResolveRoomSchematic(Props.at(0)->Value, Props.at(1)->Value, roomSch, hint);
 #else
-    const bool isCoreHierarchy = false;
+    const bool isRoomHierarchy = false;
 #endif
-    // Traditional Qucs .lib subcircuits prepend an implicit gnd node. CORE hierarchies
+    // Traditional Qucs .lib subcircuits prepend an implicit gnd node. ROOM hierarchies
     // (module_0_foundations/inverter, …) expose Gnd as an explicit port.
-    if (!isCoreHierarchy && Props.size() >= 1) {
+    if (!isRoomHierarchy && Props.size() >= 1) {
         QFile libFile;
         if (openQucsLibraryFile(Props.at(0)->Value, containingSchematic, libFile)) {
             prependImplicitGnd = true;
@@ -726,7 +726,7 @@ QString LibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
     s += " " + createType();
 
     // output user defined parameters
-    if (!isCoreHierarchy) {
+    if (!isRoomHierarchy) {
         const QString lib = Props.size() > 0 ? Props.at(0)->Value.trimmed() : QString();
         const QString comp = Props.size() > 1 ? Props.at(1)->Value.trimmed() : QString();
         for (int i = 2; i < Props.size(); i++) {

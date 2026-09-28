@@ -61,7 +61,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg SvgWidgets Xml PrintSupport)
 include_directories(
-      ${Qt6Core_INCLUDE_DIRS}
+      ${Qt6Room_INCLUDE_DIRS}
       ${Qt6Widgets_INCLUDE_DIRS}
       ${Qt6Svg_INCLUDE_DIRS}
       ${Qt6SvgWidgets_INCLUDE_DIRS}
@@ -84,7 +84,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(QT_VERSION ${Qt6Core_VERSION})
+set(QT_VERSION ${Qt6Room_VERSION})
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -178,11 +178,11 @@ wirelabel.h
 wire_planner.h
 )
 
-if(QUCS_ENABLE_CORE)
-  list(APPEND QUCS_SRCS core_schematic_io.cpp core_primitive_symbol.cpp core_block_mapper.cpp
-      core_file_lock.cpp core_lock_integration.cpp)
-  list(APPEND QUCS_HDRS core_schematic_io.h core_primitive_symbol.h core_block_mapper.h
-      core_file_lock.h core_lock_integration.h)
+if(QUCS_ENABLE_ROOM)
+  list(APPEND QUCS_SRCS room_schematic_io.cpp room_primitive_symbol.cpp room_block_mapper.cpp
+      room_file_lock.cpp room_lock_integration.cpp)
+  list(APPEND QUCS_HDRS room_schematic_io.h room_primitive_symbol.h room_block_mapper.h
+      room_file_lock.h room_lock_integration.h)
 endif()
 
 #
@@ -276,12 +276,12 @@ ADD_EXECUTABLE( ${QUCS_NAME} MACOSX_BUNDLE WIN32
 TARGET_LINK_LIBRARIES( ${QUCS_NAME}
     components diagrams dialogs geometry paintings extsimkernels spicecomponents magnetics qt3_compat
     Qt6::Core  Qt6::Gui  Qt6::Widgets Qt6::Svg  Qt6::SvgWidgets Qt6::Xml  Qt6::PrintSupport
-    $<$<BOOL:${QUCS_ENABLE_CORE}>:CORE::core>
-    $<$<BOOL:${QUCS_ENABLE_CORE}>:CORE::core_utils> )
+    $<$<BOOL:${QUCS_ENABLE_ROOM}>:ROOM::room>
+    $<$<BOOL:${QUCS_ENABLE_ROOM}>:ROOM::room_utils> )
 SET_TARGET_PROPERTIES(${QUCS_NAME} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
-if(QUCS_ENABLE_CORE AND TARGET core)
-    add_dependencies(${QUCS_NAME} core core_utils)
+if(QUCS_ENABLE_ROOM AND TARGET room)
+    add_dependencies(${QUCS_NAME} room room_utils)
 endif()
 #
 # Prepare the installation

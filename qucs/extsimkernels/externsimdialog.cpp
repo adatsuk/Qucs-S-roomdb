@@ -22,8 +22,8 @@
 #include "settings.h"
 #include "externsimdialog.h"
 #include "main.h"
-#ifdef QUCS_ENABLE_CORE
-#include "core_schematic_io.h"
+#ifdef QUCS_ENABLE_ROOM
+#include "room_schematic_io.h"
 #endif
 
 ExternSimDialog::ExternSimDialog(Schematic* sch, bool netlist2Console, bool netlist_mode) :
@@ -216,8 +216,8 @@ void ExternSimDialog::slotProcessOutput()
     if ( !a_hasError ) {
         QFileInfo inf(a_schematic->getDocName());
         QString datasetBase = inf.completeBaseName();
-#ifdef QUCS_ENABLE_CORE
-        datasetBase = qucs_core::documentBaseName(a_schematic->getDocName());
+#ifdef QUCS_ENABLE_ROOM
+        datasetBase = qucs_room::documentBaseName(a_schematic->getDocName());
 #endif
         QString qucs_dataset = inf.canonicalPath() + QDir::separator() + datasetBase + ext;
         switch (QucsSettings.DefaultSimulator) {

@@ -93,7 +93,7 @@ EOF
 chmod +x "$DIST/qucs-s-run.sh"
 
 cat >"$DIST/BUNDLE.txt" <<EOF
-Qucs-S + CORE portable bundle ($BUNDLE_LABEL)
+Qucs-S + ROOM portable bundle ($BUNDLE_LABEL)
 Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 Run: ./qucs-s-run.sh

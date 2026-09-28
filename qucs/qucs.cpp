@@ -52,10 +52,10 @@
 #include "qucsdoc.h"
 #include "textdoc.h"
 #include "schematic.h"
-#ifdef QUCS_ENABLE_CORE
-#include "core_file_lock.h"
-#include "core_lock_integration.h"
-#include "core_schematic_io.h"
+#ifdef QUCS_ENABLE_ROOM
+#include "room_file_lock.h"
+#include "room_lock_integration.h"
+#include "room_schematic_io.h"
 #endif
 #include "mouseactions.h"
 #include "messagedock.h"
@@ -119,8 +119,8 @@ QucsApp::QucsApp(bool netlist2Console) :
 
   QucsFileFilter =
     tr("Schematic") + " (*.sch);;" +
-#ifdef QUCS_ENABLE_CORE
-    tr("CORE Schematic") + " (*.core *.schematic.core);;" +
+#ifdef QUCS_ENABLE_ROOM
+    tr("ROOM Schematic") + " (*.room *.schematic.room);;" +
 #endif
     tr("Symbol only") + " (*.sym);;" +
     tr("Data Display") + " (*.dpl);;" +
@@ -141,12 +141,12 @@ QucsApp::QucsApp(bool netlist2Console) :
   MouseDoubleClickAction = nullptr;
 
   initView();
-#ifdef QUCS_ENABLE_CORE
-  m_coreLockWatcher = new QFileSystemWatcher(this);
-  connect(m_coreLockWatcher, &QFileSystemWatcher::fileChanged,
-          this, &QucsApp::slotCoreLockFileChanged);
-  connect(m_coreLockWatcher, &QFileSystemWatcher::directoryChanged,
-          this, &QucsApp::slotCoreLockFileChanged);
+#ifdef QUCS_ENABLE_ROOM
+  m_roomLockWatcher = new QFileSystemWatcher(this);
+  connect(m_roomLockWatcher, &QFileSystemWatcher::fileChanged,
+          this, &QucsApp::slotRoomLockFileChanged);
+  connect(m_roomLockWatcher, &QFileSystemWatcher::directoryChanged,
+          this, &QucsApp::slotRoomLockFileChanged);
 #endif
   initActions();
   initMenuBar();
@@ -1784,26 +1784,26 @@ bool QucsApp::gotoPage(const QString& Name, bool reloadPage)
 
   QFileInfo Info(Name);
   bool is_sch = false;
-  const bool isCoreView =
-#ifdef QUCS_ENABLE_CORE
-      qucs_core::isCoreViewPath(Name);
+  const bool isRoomView =
+#ifdef QUCS_ENABLE_ROOM
+      qucs_room::isRoomViewPath(Name);
 #else
       false;
 #endif
-  const bool isCoreSchematic =
-#ifdef QUCS_ENABLE_CORE
-      qucs_core::isCoreSchematicPath(Name);
+  const bool isRoomSchematic =
+#ifdef QUCS_ENABLE_ROOM
+      qucs_room::isRoomSchematicPath(Name);
 #else
       false;
 #endif
-  const bool isCoreSymbol =
-#ifdef QUCS_ENABLE_CORE
-      qucs_core::isCoreSymbolPath(Name);
+  const bool isRoomSymbol =
+#ifdef QUCS_ENABLE_ROOM
+      qucs_room::isRoomSymbolPath(Name);
 #else
       false;
 #endif
   if(Info.suffix() == "sch" || Info.suffix() == "dpl" ||
-     Info.suffix() == "sym" || isCoreView) {
+     Info.suffix() == "sym" || isRoomView) {
     d = new Schematic(this, Name);
     i = addDocumentTab((Schematic *)d, Info.fileName());
     is_sch = true;
@@ -1828,7 +1828,7 @@ bool QucsApp::gotoPage(const QString& Name, bool reloadPage)
     return false;
   }
   slotChangeView();
-  if (Info.suffix() == "sym" || isCoreSymbol) {
+  if (Info.suffix() == "sym" || isRoomSymbol) {
     // Symbol-only documents: switch to symbol editor the same way as native .sym files.
     Schematic *sch = (Schematic *)d;
     slotSymbolEdit();
@@ -1837,7 +1837,7 @@ bool QucsApp::gotoPage(const QString& Name, bool reloadPage)
   } else if (is_sch) {
       Schematic *sch = (Schematic *)d;
       if (sch->checkDplAndDatNames()) sch->setChanged(true,true);
-      if (isCoreSchematic) {
+      if (isRoomSchematic) {
           QTimer::singleShot(0, sch, [sch]() { sch->showAll(); });
       }
   }
@@ -1908,11 +1908,11 @@ bool QucsApp::saveFile(QucsDoc *Doc)
 void QucsApp::slotFileSave()
 {
   statusBar()->showMessage(tr("Saving file..."));
-#ifdef QUCS_ENABLE_CORE
+#ifdef QUCS_ENABLE_ROOM
   QWidget *currentWidget = DocumentTab->currentWidget();
   if (!isTextDocument(currentWidget)) {
     const auto *sch = static_cast<const Schematic *>(currentWidget);
-    if (sch->isCoreViewOnly()) {
+    if (sch->isRoomViewOnly()) {
       statusBar()->showMessage(tr("Document is read-only."), 3000);
       return;
     }
@@ -2145,9 +2145,9 @@ void QucsApp::closeFile(int index)
 
     QucsDoc *Doc = getDoc(index);
     if(Doc->getDocChanged()) {
-#ifdef QUCS_ENABLE_CORE
+#ifdef QUCS_ENABLE_ROOM
       const auto *sch = dynamic_cast<const Schematic *>(Doc);
-      if (sch != nullptr && sch->isCoreViewOnly()) {
+      if (sch != nullptr && sch->isRoomViewOnly()) {
         switch (QMessageBox::warning(this, tr("Closing Qucs document"),
                                      tr("The document has unsaved changes that cannot be saved "
                                         "because it is read-only.\n")
@@ -2347,9 +2347,9 @@ void QucsApp::slotChangeView()
 
   Doc->becomeCurrent(true);
 
-#ifdef QUCS_ENABLE_CORE
+#ifdef QUCS_ENABLE_ROOM
   if (!isTextDocument(w)) {
-    updateCoreLockUi(static_cast<Schematic *>(w));
+    updateRoomLockUi(static_cast<Schematic *>(w));
   } else {
     fileSave->setEnabled(true);
     fileSaveAs->setEnabled(true);
@@ -4586,57 +4586,57 @@ void ContextMenuTabWidget::slotCxMenuRename()
   startRename(contextTabIndex);
 }
 
-#ifdef QUCS_ENABLE_CORE
-void QucsApp::watchCoreLockFile(const QString &corePath)
+#ifdef QUCS_ENABLE_ROOM
+void QucsApp::watchRoomLockFile(const QString &roomPath)
 {
-  if (!qucs_core::isCoreViewPath(corePath) || m_coreLockWatcher == nullptr) {
+  if (!qucs_room::isRoomViewPath(roomPath) || m_roomLockWatcher == nullptr) {
     return;
   }
 
-  const QString absPath = QFileInfo(corePath).absoluteFilePath();
-  const QString lockPath = lockFilePathForCore(absPath);
-  const int next = m_coreLockWatchRefs.value(lockPath, 0) + 1;
-  m_coreLockWatchRefs.insert(lockPath, next);
+  const QString absPath = QFileInfo(roomPath).absoluteFilePath();
+  const QString lockPath = lockFilePathForRoom(absPath);
+  const int next = m_roomLockWatchRefs.value(lockPath, 0) + 1;
+  m_roomLockWatchRefs.insert(lockPath, next);
   if (next != 1) {
     return;
   }
 
   const QString watchDir = QFileInfo(absPath).absolutePath();
-  if (!m_coreLockWatcher->directories().contains(watchDir)) {
-    m_coreLockWatcher->addPath(watchDir);
+  if (!m_roomLockWatcher->directories().contains(watchDir)) {
+    m_roomLockWatcher->addPath(watchDir);
   }
-  if (QFileInfo::exists(lockPath) && !m_coreLockWatcher->files().contains(lockPath)) {
-    m_coreLockWatcher->addPath(lockPath);
+  if (QFileInfo::exists(lockPath) && !m_roomLockWatcher->files().contains(lockPath)) {
+    m_roomLockWatcher->addPath(lockPath);
   }
 }
 
-void QucsApp::unwatchCoreLockFile(const QString &corePath)
+void QucsApp::unwatchRoomLockFile(const QString &roomPath)
 {
-  if (m_coreLockWatcher == nullptr) {
+  if (m_roomLockWatcher == nullptr) {
     return;
   }
 
-  const QString absPath = QFileInfo(corePath).absoluteFilePath();
-  const QString lockPath = lockFilePathForCore(absPath);
-  const int next = m_coreLockWatchRefs.value(lockPath, 0) - 1;
+  const QString absPath = QFileInfo(roomPath).absoluteFilePath();
+  const QString lockPath = lockFilePathForRoom(absPath);
+  const int next = m_roomLockWatchRefs.value(lockPath, 0) - 1;
   if (next > 0) {
-    m_coreLockWatchRefs.insert(lockPath, next);
+    m_roomLockWatchRefs.insert(lockPath, next);
     return;
   }
 
-  m_coreLockWatchRefs.remove(lockPath);
-  if (m_coreLockWatcher->files().contains(lockPath)) {
-    m_coreLockWatcher->removePath(lockPath);
+  m_roomLockWatchRefs.remove(lockPath);
+  if (m_roomLockWatcher->files().contains(lockPath)) {
+    m_roomLockWatcher->removePath(lockPath);
   }
 }
 
-void QucsApp::refreshSchematicsForCoreLock(const QString &lockPath)
+void QucsApp::refreshSchematicsForRoomLock(const QString &lockPath)
 {
-  QString corePath = lockPath;
-  if (corePath.endsWith(QStringLiteral(".lck"))) {
-    corePath.chop(4);
+  QString roomPath = lockPath;
+  if (roomPath.endsWith(QStringLiteral(".lck"))) {
+    roomPath.chop(4);
   }
-  const QString absCore = QFileInfo(corePath).absoluteFilePath();
+  const QString absRoom = QFileInfo(roomPath).absoluteFilePath();
 
   for (int i = 0; i < DocumentTab->count(); ++i) {
     QWidget *widget = DocumentTab->widget(i);
@@ -4645,49 +4645,49 @@ void QucsApp::refreshSchematicsForCoreLock(const QString &lockPath)
     }
 
     auto *sch = static_cast<Schematic *>(widget);
-    if (QFileInfo(sch->getDocName()).absoluteFilePath() == absCore) {
-      qucs_core::refreshCoreDocumentLock(sch, this);
+    if (QFileInfo(sch->getDocName()).absoluteFilePath() == absRoom) {
+      qucs_room::refreshRoomDocumentLock(sch, this);
     }
   }
 }
 
-void QucsApp::slotCoreLockFileChanged(const QString &path)
+void QucsApp::slotRoomLockFileChanged(const QString &path)
 {
   if (path.endsWith(QStringLiteral(".lck"))) {
-    refreshSchematicsForCoreLock(path);
+    refreshSchematicsForRoomLock(path);
     if (QFileInfo::exists(path)) {
-      if (!m_coreLockWatcher->files().contains(path)) {
-        m_coreLockWatcher->addPath(path);
+      if (!m_roomLockWatcher->files().contains(path)) {
+        m_roomLockWatcher->addPath(path);
       }
-    } else if (m_coreLockWatcher->files().contains(path)) {
-      m_coreLockWatcher->removePath(path);
+    } else if (m_roomLockWatcher->files().contains(path)) {
+      m_roomLockWatcher->removePath(path);
     }
     return;
   }
 
-  for (auto it = m_coreLockWatchRefs.constBegin(); it != m_coreLockWatchRefs.constEnd(); ++it) {
+  for (auto it = m_roomLockWatchRefs.constBegin(); it != m_roomLockWatchRefs.constEnd(); ++it) {
     const QString lockPath = it.key();
     if (QFileInfo(lockPath).absolutePath() == path) {
-      refreshSchematicsForCoreLock(lockPath);
-      if (QFileInfo::exists(lockPath) && !m_coreLockWatcher->files().contains(lockPath)) {
-        m_coreLockWatcher->addPath(lockPath);
+      refreshSchematicsForRoomLock(lockPath);
+      if (QFileInfo::exists(lockPath) && !m_roomLockWatcher->files().contains(lockPath)) {
+        m_roomLockWatcher->addPath(lockPath);
       }
     }
   }
 }
 
-void QucsApp::updateCoreLockUi(Schematic *schematic)
+void QucsApp::updateRoomLockUi(Schematic *schematic)
 {
   if (schematic == nullptr) {
     return;
   }
 
-  const bool coreDoc = qucs_core::isCoreViewPath(schematic->getDocName());
-  const bool viewOnly = coreDoc && schematic->isCoreViewOnly();
+  const bool roomDoc = qucs_room::isRoomViewPath(schematic->getDocName());
+  const bool viewOnly = roomDoc && schematic->isRoomViewOnly();
   const bool canEdit = !viewOnly;
 
-  fileSave->setEnabled(canEdit || !coreDoc);
-  fileSaveAs->setEnabled(canEdit || !coreDoc);
+  fileSave->setEnabled(canEdit || !roomDoc);
+  fileSaveAs->setEnabled(canEdit || !roomDoc);
 
   insWire->setEnabled(canEdit);
   insLabel->setEnabled(canEdit);
@@ -4739,8 +4739,8 @@ void QucsApp::updateCoreLockUi(Schematic *schematic)
     DocumentTab->setTabText(tabIndex, title);
   }
 
-  if (coreDoc) {
-    statusBar()->showMessage(schematic->coreLockStatusText());
+  if (roomDoc) {
+    statusBar()->showMessage(schematic->roomLockStatusText());
   }
 }
 #endif

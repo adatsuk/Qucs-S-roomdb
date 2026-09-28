@@ -1,10 +1,10 @@
 @echo off
-rem LibMan / Tool Manager launcher for Qucs-S with CORE + IHP PDK + ngspice.
+rem LibMan / Tool Manager launcher for Qucs-S with ROOM + IHP PDK + ngspice.
 setlocal EnableExtensions
 set "ROOT=%~dp0"
 set "EXE=%ROOT%build\qucs\qucs-s.exe"
 if not exist "%EXE%" (
-  echo ERROR: Build qucs-s first. See docs\CORE.md
+  echo ERROR: Build qucs-s first. See docs\ROOM.md
   exit /b 1
 )
 

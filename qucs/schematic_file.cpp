@@ -19,7 +19,7 @@
 # include <config.h>
 #endif
 
-#include <QtCore>
+#include <QtRoom>
 #include <QMessageBox>
 #include <QDir>
 #include <QStringList>
@@ -45,10 +45,10 @@
 #include "extsimkernels/s2spice.h"
 #include "osdi/osdi_0_3.h"
 
-#ifdef QUCS_ENABLE_CORE
-#include "core_lock_integration.h"
-#include "core_schematic_io.h"
-#include "core_block_mapper.h"
+#ifdef QUCS_ENABLE_ROOM
+#include "room_lock_integration.h"
+#include "room_schematic_io.h"
+#include "room_block_mapper.h"
 #include <QBuffer>
 #endif
 
@@ -667,18 +667,18 @@ int Schematic::saveSymbolJSON()
 // Returns the number of subcircuit ports.
 int Schematic::saveDocument()
 {
-#ifdef QUCS_ENABLE_CORE
-  if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
-    const qucs_core::IoResult lockCheck = qucs_core::verifyCoreLockForSave(a_DocName);
+#ifdef QUCS_ENABLE_ROOM
+  if (!qucs_room::g_roomBridgeActive && qucs_room::isRoomViewPath(a_DocName)) {
+    const qucs_room::IoResult lockCheck = qucs_room::verifyRoomLockForSave(a_DocName);
     if (!lockCheck.ok) {
       QMessageBox::critical(nullptr, QObject::tr("Error"), lockCheck.message);
       return -1;
     }
 
-    const qucs_core::IoResult saved = qucs_core::saveSchematicToCoreFileDirect(this, a_DocName);
+    const qucs_room::IoResult saved = qucs_room::saveSchematicToRoomFileDirect(this, a_DocName);
     if (!saved.ok) {
       QMessageBox::critical(nullptr, QObject::tr("Error"),
-                            QObject::tr("Cannot save CORE file:\n%1").arg(saved.message));
+                            QObject::tr("Cannot save ROOM file:\n%1").arg(saved.message));
       return -1;
     }
     return 0;
@@ -789,7 +789,7 @@ int Schematic::saveDocument()
 
           QFileInfo inf(QucsSettings.Qucsator);
           QString QucsatorPath = inf.path()+QDir::separator();
-          QDir include = QDir(QucsatorPath+"../include/qucs-core");
+          QDir include = QDir(QucsatorPath+"../include/qucs-room");
 
           //pick admsXml from settings
           QString admsXml = QucsSettings.AdmsXmlBinDir.canonicalPath();
@@ -1007,7 +1007,7 @@ bool Schematic::loadComponents(QTextStream *stream, std::list<Component*> *List)
     Line = stream->readLine();
     if(Line.isEmpty()) continue;
 
-    // CORE/Qucs exports may embed newlines inside quoted property values (INCLSCR).
+    // ROOM/Qucs exports may embed newlines inside quoted property values (INCLSCR).
     while(!stream->atEnd() && !Line.trimmed().endsWith(QLatin1Char('>'))) {
       Line += stream->readLine();
     }
@@ -1213,12 +1213,12 @@ bool Schematic::loadPaintings(QTextStream *stream, std::list<Painting*> *List)
  */
 bool Schematic::loadDocument()
 {
-#ifdef QUCS_ENABLE_CORE
-  if (!qucs_core::g_coreBridgeActive && qucs_core::isCoreViewPath(a_DocName)) {
-    const qucs_core::IoResult loaded = qucs_core::loadCoreFileDirect(a_DocName, this);
+#ifdef QUCS_ENABLE_ROOM
+  if (!qucs_room::g_roomBridgeActive && qucs_room::isRoomViewPath(a_DocName)) {
+    const qucs_room::IoResult loaded = qucs_room::loadRoomFileDirect(a_DocName, this);
     if (!loaded.ok) {
       QMessageBox::critical(nullptr, QObject::tr("Error"),
-                            QObject::tr("Cannot load CORE file:\n%1").arg(loaded.message));
+                            QObject::tr("Cannot load ROOM file:\n%1").arg(loaded.message));
       return false;
     }
     return true;
@@ -1322,7 +1322,7 @@ bool Schematic::loadDocument()
   return true;
 }
 
-#ifdef QUCS_ENABLE_CORE
+#ifdef QUCS_ENABLE_ROOM
 bool Schematic::loadDocumentFromText(const QString &text)
 {
   QString content = text;
@@ -1407,7 +1407,7 @@ int Schematic::saveDocumentToText(QString &out)
   QTextStream stream(&buffer);
   stream << "<Qucs Schematic " << PACKAGE_VERSION << ">\n";
 
-  if (qucs_core::isCoreSymbolPath(a_DocName)) {
+  if (qucs_room::isRoomSymbolPath(a_DocName)) {
       stream << "<Symbol>\n";
       for(auto* pp : a_SymbolPaints) {
           stream << "  <" << pp->save() << ">\n";

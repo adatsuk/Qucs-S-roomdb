@@ -1,6 +1,6 @@
-#include "core_primitive_symbol.h"
+#include "room_primitive_symbol.h"
 
-#include "core_schematic_io.h"
+#include "room_schematic_io.h"
 #include "database.h"
 #include "primitive_resolver.h"
 #include "qucs_exporter.h"
@@ -8,37 +8,37 @@
 #include <QDir>
 #include <QFileInfo>
 
-#include "core_schematic_io.h"
+#include "room_schematic_io.h"
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 
-namespace qucs_core {
+namespace qucs_room {
 namespace {
 
-core::QucsExporter::Options exporterOptionsFromEnvironment()
+room::QucsExporter::Options exporterOptionsFromEnvironment()
 {
-    core::QucsExporter::Options options;
+    room::QucsExporter::Options options;
     if (qEnvironmentVariableIsSet("LIBMAN_TECH_LIBRARY")) {
         options.techLibrary = qEnvironmentVariable("LIBMAN_TECH_LIBRARY").toStdString();
     }
     if (qEnvironmentVariableIsSet("QUCS_PRIMITIVE_LIB")) {
         options.qucsPrimitiveLib = qEnvironmentVariable("QUCS_PRIMITIVE_LIB").toStdString();
     }
-    for (const std::string &path : core::PrimitiveResolver::primitiveCorePathsFromEnvironment()) {
+    for (const std::string &path : room::PrimitiveResolver::primitiveCorePathsFromEnvironment()) {
         options.primitiveCorePaths.push_back(path);
     }
     return options;
 }
 
-core::PrimitiveResolver buildResolver(const core::QucsExporter::Options &options)
+room::PrimitiveResolver buildResolver(const room::QucsExporter::Options &options)
 {
-    core::PrimitiveResolver resolver;
+    room::PrimitiveResolver resolver;
     resolver.setTechLibrary(options.techLibrary);
     if (!options.qucsPrimitiveLib.empty()) {
         resolver.setQucsLibrary(options.qucsPrimitiveLib);
     }
     for (const std::string &path : options.primitiveCorePaths) {
-        resolver.addCorePath(path);
+        resolver.addRoomPath(path);
     }
     if (options.primitiveCorePaths.empty()) {
         resolver.loadFromEnvironment();
@@ -67,7 +67,7 @@ std::vector<std::string> candidateRefs(const QString &compName, const std::strin
 
 } // namespace
 
-bool tryLoadCoreCellSymbol(const QString &libName, const QString &cellName, QString &symbolSection,
+bool tryLoadRoomCellSymbol(const QString &libName, const QString &cellName, QString &symbolSection,
                            const QString &hintDocPath)
 {
     symbolSection.clear();
@@ -76,23 +76,23 @@ bool tryLoadCoreCellSymbol(const QString &libName, const QString &cellName, QStr
     }
 
     QString schematicPath;
-    if (!tryResolveCoreSchematic(libName, cellName, schematicPath, hintDocPath)) {
+    if (!tryResolveRoomSchematic(libName, cellName, schematicPath, hintDocPath)) {
         return false;
     }
 
     QString symbolPath = schematicPath;
-    symbolPath.replace(QStringLiteral(".schematic.core"), QStringLiteral(".symbol.core"), Qt::CaseInsensitive);
+    symbolPath.replace(QStringLiteral(".schematic.room"), QStringLiteral(".symbol.room"), Qt::CaseInsensitive);
     if (!QFileInfo::exists(symbolPath)) {
         return false;
     }
 
     try {
-        const core::Database db = core::Database::loadFromFile(symbolPath.toStdString());
-        const QString exportCell = cellNameFromCorePath(symbolPath);
+        const room::Database db = room::Database::loadFromFile(symbolPath.toStdString());
+        const QString exportCell = cellNameFromRoomPath(symbolPath);
         if (exportCell.isEmpty()) {
             return false;
         }
-        const core::QucsExporter exporter(exporterOptionsFromEnvironment());
+        const room::QucsExporter exporter(exporterOptionsFromEnvironment());
         const std::vector<std::string> lines = exporter.symbolLinesForCell(db, exportCell.toStdString());
         if (lines.empty() || !exporter.errors().empty()) {
             return false;
@@ -117,16 +117,16 @@ bool tryLoadCoreCellSymbol(const QString &libName, const QString &cellName, QStr
     }
 }
 
-bool tryLoadCorePrimitiveSymbol(const QString &compName, QString &symbolSection)
+bool tryLoadRoomPrimitiveSymbol(const QString &compName, QString &symbolSection)
 {
     if (compName.trimmed().isEmpty()) {
         return false;
     }
 
-    const core::QucsExporter::Options options = exporterOptionsFromEnvironment();
-    const core::PrimitiveResolver resolver = buildResolver(options);
+    const room::QucsExporter::Options options = exporterOptionsFromEnvironment();
+    const room::PrimitiveResolver resolver = buildResolver(options);
 
-    core::ResolvedPrimitive resolved;
+    room::ResolvedPrimitive resolved;
     for (const std::string &ref : candidateRefs(compName, options.techLibrary)) {
         resolved = resolver.resolveReference(ref);
         if (resolved.found) {
@@ -138,8 +138,8 @@ bool tryLoadCorePrimitiveSymbol(const QString &compName, QString &symbolSection)
     }
 
     try {
-        const core::Database db = core::Database::loadFromFile(resolved.corePath);
-        const core::QucsExporter exporter(options);
+        const room::Database db = room::Database::loadFromFile(resolved.roomPath);
+        const room::QucsExporter exporter(options);
         const std::vector<std::string> lines = exporter.symbolLinesForCell(db, resolved.cellName);
         if (lines.empty() || !exporter.errors().empty()) {
             return false;
@@ -164,32 +164,32 @@ bool tryLoadCorePrimitiveSymbol(const QString &compName, QString &symbolSection)
     }
 }
 
-bool tryResolveCoreSchematic(const QString &libName, const QString &compName, QString &schematicCorePath,
+bool tryResolveRoomSchematic(const QString &libName, const QString &compName, QString &schematicRoomPath,
                              const QString &hintDocPath)
 {
-    schematicCorePath.clear();
+    schematicRoomPath.clear();
     if (compName.trimmed().isEmpty()) {
         return false;
     }
 
     auto acceptIfExists = [&](QString path) -> bool {
         path = QDir::cleanPath(path);
-        if (!path.endsWith(QStringLiteral(".schematic.core"), Qt::CaseInsensitive)) {
-            if (path.endsWith(QStringLiteral(".symbol.core"), Qt::CaseInsensitive)) {
-                path.replace(QStringLiteral(".symbol.core"), QStringLiteral(".schematic.core"));
-            } else if (path.endsWith(QStringLiteral(".sym.core"), Qt::CaseInsensitive)) {
-                path.replace(QStringLiteral(".sym.core"), QStringLiteral(".schematic.core"));
+        if (!path.endsWith(QStringLiteral(".schematic.room"), Qt::CaseInsensitive)) {
+            if (path.endsWith(QStringLiteral(".symbol.room"), Qt::CaseInsensitive)) {
+                path.replace(QStringLiteral(".symbol.room"), QStringLiteral(".schematic.room"));
+            } else if (path.endsWith(QStringLiteral(".sym.room"), Qt::CaseInsensitive)) {
+                path.replace(QStringLiteral(".sym.room"), QStringLiteral(".schematic.room"));
             }
         }
         if (QFileInfo::exists(path)) {
-            schematicCorePath = QDir::toNativeSeparators(path);
+            schematicRoomPath = QDir::toNativeSeparators(path);
             return true;
         }
         return false;
     };
 
-    const core::QucsExporter::Options options = exporterOptionsFromEnvironment();
-    const core::PrimitiveResolver resolver = buildResolver(options);
+    const room::QucsExporter::Options options = exporterOptionsFromEnvironment();
+    const room::PrimitiveResolver resolver = buildResolver(options);
 
     std::vector<std::string> refs = candidateRefs(compName, options.techLibrary);
     if (!libName.trimmed().isEmpty()) {
@@ -198,33 +198,33 @@ bool tryResolveCoreSchematic(const QString &libName, const QString &compName, QS
         refs.insert(refs.begin(), {lib + "/" + cell, lib + "/" + cell + ".sym", cell, cell + ".sym"});
     }
 
-    core::ResolvedPrimitive resolved;
+    room::ResolvedPrimitive resolved;
     for (const std::string &ref : refs) {
         resolved = resolver.resolveReference(ref);
         if (resolved.found) {
             break;
         }
     }
-    if (resolved.found && !resolved.corePath.empty() && acceptIfExists(QString::fromStdString(resolved.corePath))) {
+    if (resolved.found && !resolved.roomPath.empty() && acceptIfExists(QString::fromStdString(resolved.roomPath))) {
         return true;
     }
 
-    // Sibling-cell fallback: .../lib/inverter_tb/foo.core → .../lib/inverter/inverter.schematic.core
+    // Sibling-cell fallback: .../lib/inverter_tb/foo.room → .../lib/inverter/inverter.schematic.room
     if (!hintDocPath.trimmed().isEmpty()) {
         QDir cellDir = QFileInfo(hintDocPath).absoluteDir();
         const QString cell = compName.trimmed();
-        if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + QStringLiteral(".schematic.core")))) {
+        if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + QStringLiteral(".schematic.room")))) {
             return true;
         }
         if (cellDir.cdUp()) {
-            if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + QStringLiteral(".schematic.core")))) {
+            if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + QStringLiteral(".schematic.room")))) {
                 return true;
             }
             if (!libName.trimmed().isEmpty() && cellDir.dirName().compare(libName.trimmed(), Qt::CaseInsensitive) != 0) {
                 // hint may be deeper; try libName/cell under parent chain once more
                 if (cellDir.cdUp()
                     && acceptIfExists(cellDir.filePath(libName.trimmed() + QLatin1Char('/') + cell + QLatin1Char('/')
-                                                       + cell + QStringLiteral(".schematic.core")))) {
+                                                       + cell + QStringLiteral(".schematic.room")))) {
                     return true;
                 }
             }
@@ -234,4 +234,4 @@ bool tryResolveCoreSchematic(const QString &libName, const QString &compName, QS
     return false;
 }
 
-} // namespace qucs_core
+} // namespace qucs_room

@@ -1,4 +1,4 @@
-#include "core_file_lock.h"
+#include "room_file_lock.h"
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -120,23 +120,23 @@ QHash<QString, int> &lockRefCounts()
     return counts;
 }
 
-QString absoluteCorePath(const QString &corePath)
+QString absoluteRoomPath(const QString &roomPath)
 {
-    return QFileInfo(corePath).absoluteFilePath();
+    return QFileInfo(roomPath).absoluteFilePath();
 }
 
 } // namespace
 
-QString lockFilePathForCore(const QString &corePath)
+QString lockFilePathForRoom(const QString &roomPath)
 {
-    return absoluteCorePath(corePath) + QStringLiteral(".lck");
+    return absoluteRoomPath(roomPath) + QStringLiteral(".lck");
 }
 
-CoreFileLockInfo readCoreLockFile(const QString &corePath)
+RoomFileLockInfo readRoomLockFile(const QString &roomPath)
 {
-    CoreFileLockInfo info;
-    info.corePath = absoluteCorePath(corePath);
-    info.lockPath = lockFilePathForCore(info.corePath);
+    RoomFileLockInfo info;
+    info.roomPath = absoluteRoomPath(roomPath);
+    info.lockPath = lockFilePathForRoom(info.roomPath);
     info.present = QFileInfo::exists(info.lockPath);
     if (!info.present) {
         return info;
@@ -159,9 +159,9 @@ CoreFileLockInfo readCoreLockFile(const QString &corePath)
     const QJsonObject root = document.object();
     info.parseOk = true;
     info.createdAt = readJsonString(root, QStringLiteral("createdAt"));
-    info.corePath = readJsonString(root, QStringLiteral("corePath"));
-    if (info.corePath.isEmpty()) {
-        info.corePath = absoluteCorePath(corePath);
+    info.roomPath = readJsonString(root, QStringLiteral("roomPath"));
+    if (info.roomPath.isEmpty()) {
+        info.roomPath = absoluteRoomPath(roomPath);
     }
 
     const QJsonObject holder = root.value(QStringLiteral("holder")).toObject();
@@ -176,13 +176,13 @@ CoreFileLockInfo readCoreLockFile(const QString &corePath)
     return info;
 }
 
-bool isLocalToolCoreLock(const CoreFileLockInfo &info)
+bool isLocalToolRoomLock(const RoomFileLockInfo &info)
 {
     return info.tool.isEmpty()
         || info.tool.compare(QStringLiteral("qucs-s"), Qt::CaseInsensitive) == 0;
 }
 
-bool isStaleCoreLock(const CoreFileLockInfo &info)
+bool isStaleRoomLock(const RoomFileLockInfo &info)
 {
     if (!info.present) {
         return false;
@@ -196,19 +196,19 @@ bool isStaleCoreLock(const CoreFileLockInfo &info)
         return true;
     }
 
-    if (isCoreLockHeldByCurrentProcess(info)) {
+    if (isRoomLockHeldByCurrentProcess(info)) {
         return false;
     }
 
     // xschem (and other WSL tools) store Linux PIDs — check via wsl.exe.
-    if (!isLocalToolCoreLock(info)) {
+    if (!isLocalToolRoomLock(info)) {
         return !isWslProcessAlive(info.pid);
     }
 
     return !isWindowsProcessAlive(info.pid);
 }
 
-bool isCoreLockHeldByCurrentProcess(const CoreFileLockInfo &info)
+bool isRoomLockHeldByCurrentProcess(const RoomFileLockInfo &info)
 {
     if (!info.present || !info.parseOk) {
         return false;
@@ -219,22 +219,22 @@ bool isCoreLockHeldByCurrentProcess(const CoreFileLockInfo &info)
         && info.host.compare(currentHostName(), Qt::CaseInsensitive) == 0;
 }
 
-CoreLockAcquireResult tryAcquireCoreLock(const QString &corePath, QString *errorMessage)
+RoomLockAcquireResult tryAcquireRoomLock(const QString &roomPath, QString *errorMessage)
 {
-    const QString absPath = absoluteCorePath(corePath);
-    const QString lockPath = lockFilePathForCore(absPath);
+    const QString absPath = absoluteRoomPath(roomPath);
+    const QString lockPath = lockFilePathForRoom(absPath);
 
-    CoreFileLockInfo existing = readCoreLockFile(absPath);
+    RoomFileLockInfo existing = readRoomLockFile(absPath);
     if (existing.present) {
-        if (isStaleCoreLock(existing)) {
+        if (isStaleRoomLock(existing)) {
             QFile::remove(lockPath);
-        } else if (isCoreLockHeldByCurrentProcess(existing)) {
-            return CoreLockAcquireResult::AlreadyHeld;
+        } else if (isRoomLockHeldByCurrentProcess(existing)) {
+            return RoomLockAcquireResult::AlreadyHeld;
         } else {
             if (errorMessage != nullptr) {
-                *errorMessage = formatCoreLockStatusLine(existing);
+                *errorMessage = formatRoomLockStatusLine(existing);
             }
-            return CoreLockAcquireResult::ForeignLock;
+            return RoomLockAcquireResult::ForeignLock;
         }
     }
 
@@ -247,7 +247,7 @@ CoreLockAcquireResult tryAcquireCoreLock(const QString &corePath, QString *error
 
     QJsonObject root;
     root.insert(QStringLiteral("version"), 1);
-    root.insert(QStringLiteral("corePath"), absPath);
+    root.insert(QStringLiteral("roomPath"), absPath);
     root.insert(QStringLiteral("holder"), holder);
     root.insert(QStringLiteral("createdAt"),
                 QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
@@ -260,7 +260,7 @@ CoreLockAcquireResult tryAcquireCoreLock(const QString &corePath, QString *error
         if (errorMessage != nullptr) {
             *errorMessage = QObject::tr("Could not create lock file.");
         }
-        return CoreLockAcquireResult::Error;
+        return RoomLockAcquireResult::Error;
     }
 
     if (tempFile.write(payload) != payload.size()) {
@@ -268,7 +268,7 @@ CoreLockAcquireResult tryAcquireCoreLock(const QString &corePath, QString *error
         if (errorMessage != nullptr) {
             *errorMessage = QObject::tr("Could not write lock file.");
         }
-        return CoreLockAcquireResult::Error;
+        return RoomLockAcquireResult::Error;
     }
     tempFile.close();
 
@@ -277,7 +277,7 @@ CoreLockAcquireResult tryAcquireCoreLock(const QString &corePath, QString *error
         if (errorMessage != nullptr) {
             *errorMessage = QObject::tr("Could not replace existing lock file.");
         }
-        return CoreLockAcquireResult::ForeignLock;
+        return RoomLockAcquireResult::ForeignLock;
     }
 
     if (!QFile::rename(tempPath, lockPath)) {
@@ -285,35 +285,35 @@ CoreLockAcquireResult tryAcquireCoreLock(const QString &corePath, QString *error
         if (errorMessage != nullptr) {
             *errorMessage = QObject::tr("Could not finalize lock file.");
         }
-        return CoreLockAcquireResult::Error;
+        return RoomLockAcquireResult::Error;
     }
 
-    return CoreLockAcquireResult::Acquired;
+    return RoomLockAcquireResult::Acquired;
 }
 
-bool releaseCoreLock(const QString &corePath)
+bool releaseRoomLock(const QString &roomPath)
 {
-    const QString lockPath = lockFilePathForCore(corePath);
+    const QString lockPath = lockFilePathForRoom(roomPath);
     if (!QFileInfo::exists(lockPath)) {
         return true;
     }
 
-    const CoreFileLockInfo info = readCoreLockFile(corePath);
-    if (info.present && info.parseOk && !isCoreLockHeldByCurrentProcess(info) && !isStaleCoreLock(info)) {
+    const RoomFileLockInfo info = readRoomLockFile(roomPath);
+    if (info.present && info.parseOk && !isRoomLockHeldByCurrentProcess(info) && !isStaleRoomLock(info)) {
         return false;
     }
 
     return QFile::remove(lockPath);
 }
 
-QString formatCoreLockStatusLine(const CoreFileLockInfo &info)
+QString formatRoomLockStatusLine(const RoomFileLockInfo &info)
 {
     if (!info.present) {
-        return QObject::tr("CORE lock: none");
+        return QObject::tr("ROOM lock: none");
     }
 
     if (!info.parseOk) {
-        return QObject::tr("CORE lock: present but unreadable");
+        return QObject::tr("ROOM lock: present but unreadable");
     }
 
     QString line = QObject::tr("Read-only");
@@ -334,7 +334,7 @@ QString formatCoreLockStatusLine(const CoreFileLockInfo &info)
     return line;
 }
 
-QString formatCoreLockInfoBlock(const CoreFileLockInfo &info)
+QString formatRoomLockInfoBlock(const RoomFileLockInfo &info)
 {
     QString block = QStringLiteral("\tLock: ");
     if (!info.present) {
@@ -377,15 +377,15 @@ QString formatCoreLockInfoBlock(const CoreFileLockInfo &info)
     return block;
 }
 
-int coreLockAddRef(const QString &corePath)
+int roomLockAddRef(const QString &roomPath)
 {
-    const QString absPath = absoluteCorePath(corePath);
+    const QString absPath = absoluteRoomPath(roomPath);
     return ++lockRefCounts()[absPath];
 }
 
-int coreLockReleaseRef(const QString &corePath)
+int roomLockReleaseRef(const QString &roomPath)
 {
-    const QString absPath = absoluteCorePath(corePath);
+    const QString absPath = absoluteRoomPath(roomPath);
     auto it = lockRefCounts().find(absPath);
     if (it == lockRefCounts().end()) {
         return 0;
@@ -401,7 +401,7 @@ int coreLockReleaseRef(const QString &corePath)
     return next;
 }
 
-int coreLockRefCount(const QString &corePath)
+int roomLockRefCount(const QString &roomPath)
 {
-    return lockRefCounts().value(absoluteCorePath(corePath), 0);
+    return lockRefCounts().value(absoluteRoomPath(roomPath), 0);
 }

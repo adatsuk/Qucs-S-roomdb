@@ -29,12 +29,12 @@
 
 #include "qucsdoc.h"
 
-#ifdef QUCS_ENABLE_CORE
-namespace qucs_core {
+#ifdef QUCS_ENABLE_ROOM
+namespace qucs_room {
 struct IoResult;
-IoResult loadCoreFileDirect(const QString &corePath, class Schematic *schematic);
-IoResult saveSchematicToCoreFileDirect(class Schematic *schematic, const QString &corePath);
-} // namespace qucs_core
+IoResult loadRoomFileDirect(const QString &roomPath, class Schematic *schematic);
+IoResult saveSchematicToRoomFileDirect(class Schematic *schematic, const QString &roomPath);
+} // namespace qucs_room
 #endif
 #include "wire_planner.h"
 #include "schematic_selection.h"
@@ -270,14 +270,14 @@ public:
   void setSymbolMode(bool value) { a_symbolMode = value; }
   bool getIsSymbolOnly() const { return a_isSymbolOnly; }
   void setIsSymbolOnly(bool value) { a_isSymbolOnly = value; }
-#ifdef QUCS_ENABLE_CORE
-  bool isCoreViewOnly() const { return a_coreViewOnly; }
-  bool holdsCoreLock() const { return a_coreLockHeld; }
-  QString coreLockStatusText() const { return a_coreLockStatus; }
-  void configureCoreLockState(bool viewOnly, bool lockHeld, const QString &corePath,
+#ifdef QUCS_ENABLE_ROOM
+  bool isRoomViewOnly() const { return a_roomViewOnly; }
+  bool holdsRoomLock() const { return a_roomLockHeld; }
+  QString roomLockStatusText() const { return a_roomLockStatus; }
+  void configureRoomLockState(bool viewOnly, bool lockHeld, const QString &roomPath,
                               const QString &status);
-  void releaseHeldCoreLock();
-  void dropCoreLockOwnership();
+  void releaseHeldRoomLock();
+  void dropRoomLockOwnership();
 #endif
   void clearPostedPaintEvents() { a_PostedPaintEvents.clear(); }
 
@@ -301,11 +301,11 @@ private:
 
   bool a_symbolMode;  // true if in symbol painting mode
   bool a_isSymbolOnly;
-#ifdef QUCS_ENABLE_CORE
-  bool a_coreViewOnly = false;
-  bool a_coreLockHeld = false;
-  QString a_coreLockPath;
-  QString a_coreLockStatus;
+#ifdef QUCS_ENABLE_ROOM
+  bool a_roomViewOnly = false;
+  bool a_roomLockHeld = false;
+  QString a_roomLockPath;
+  QString a_roomLockStatus;
 #endif
 
   // Horizontal and vertical grid step, grid color.
@@ -568,16 +568,16 @@ public:
   QString createNetlist(QTextStream&, int);
   bool isDigitalCircuit();
   bool loadDocument();
-#ifdef QUCS_ENABLE_CORE
+#ifdef QUCS_ENABLE_ROOM
   bool loadDocumentFromText(const QString &text);
   int saveDocumentToText(QString &out);
-  bool loadCoreProperties(QTextStream *stream) { return loadProperties(stream); }
-  bool loadCoreDiagrams(QTextStream *stream) { return loadDiagrams(stream, &a_DocDiags); }
-  bool loadCorePaintings(QTextStream *stream, std::list<Painting *> *target) { return loadPaintings(stream, target); }
-  void insertCoreComponent(Component *component) { simpleInsertComponent(component); }
-  void insertCoreWire(Wire *wire) { simpleInsertWire(wire); }
-  void setCoreCoordDivisor(qint64 value) { a_coreCoordDivisor = value; }
-  qint64 coreCoordDivisor() const { return a_coreCoordDivisor; }
+  bool loadRoomProperties(QTextStream *stream) { return loadProperties(stream); }
+  bool loadRoomDiagrams(QTextStream *stream) { return loadDiagrams(stream, &a_DocDiags); }
+  bool loadRoomPaintings(QTextStream *stream, std::list<Painting *> *target) { return loadPaintings(stream, target); }
+  void insertRoomComponent(Component *component) { simpleInsertComponent(component); }
+  void insertRoomWire(Wire *wire) { simpleInsertWire(wire); }
+  void setRoomCoordDivisor(qint64 value) { a_roomCoordDivisor = value; }
+  qint64 roomCoordDivisor() const { return a_roomCoordDivisor; }
 #endif
   void highlightWireLabels (void);
   void clearSignalsAndFileList();
@@ -629,7 +629,7 @@ private:
   bool a_creatingLib;
 
   QString m_simType; // Simulation type. Needed for the Pac (constant AC power source) to determine with network to build with Qucsator-RF
-  qint64 a_coreCoordDivisor = 1;
+  qint64 a_roomCoordDivisor = 1;
 };
 
 #endif

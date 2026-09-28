@@ -1,4 +1,4 @@
-#include "core_block_mapper.h"
+#include "room_block_mapper.h"
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -6,9 +6,9 @@
 
 #include "cell_content.h"
 #include "coord_scale.h"
-#include "core_file_lock.h"
-#include "core_paths.h"
-#include "core_schematic_io.h"
+#include "room_file_lock.h"
+#include "room_paths.h"
+#include "room_schematic_io.h"
 #include "database.h"
 #include "source_info.h"
 #include "qucs_block_codec.h"
@@ -43,37 +43,37 @@
 #include <unordered_map>
 #include <vector>
 
-namespace qucs_core {
+namespace qucs_room {
 namespace {
 
-core::QucsExporter::Options exporterOptionsFromEnvironment()
+room::QucsExporter::Options exporterOptionsFromEnvironment()
 {
-    core::QucsExporter::Options options;
+    room::QucsExporter::Options options;
     if (qEnvironmentVariableIsSet("LIBMAN_TECH_LIBRARY")) {
         options.techLibrary = qEnvironmentVariable("LIBMAN_TECH_LIBRARY").toStdString();
     }
     if (qEnvironmentVariableIsSet("QUCS_PRIMITIVE_LIB")) {
         options.qucsPrimitiveLib = qEnvironmentVariable("QUCS_PRIMITIVE_LIB").toStdString();
     }
-    for (const std::string &path : core::PrimitiveResolver::primitiveCorePathsFromEnvironment()) {
+    for (const std::string &path : room::PrimitiveResolver::primitiveCorePathsFromEnvironment()) {
         options.primitiveCorePaths.push_back(path);
     }
     return options;
 }
 
-core::QucsImporter::Options importerOptionsFromCorePath(const QString &corePath)
+room::QucsImporter::Options importerOptionsFromRoomPath(const QString &roomPath)
 {
-    core::QucsImporter::Options options;
+    room::QucsImporter::Options options;
     options.libName = "qucs_s";
-    options.cellName = cellNameFromCorePath(corePath).toStdString();
+    options.cellName = cellNameFromRoomPath(roomPath).toStdString();
     return options;
 }
 
-bool loadPropertySection(Schematic *schematic, const std::vector<core::Property> &properties,
+bool loadPropertySection(Schematic *schematic, const std::vector<room::Property> &properties,
                          const std::string &prefix, const QString &sectionName,
                          const std::function<bool(QTextStream *)> &loader)
 {
-    const std::vector<std::string> lines = core::qucs_codec::collectProperties(properties, prefix);
+    const std::vector<std::string> lines = room::qucs_codec::collectProperties(properties, prefix);
     if (lines.empty()) {
         return true;
     }
@@ -89,25 +89,25 @@ bool loadPropertySection(Schematic *schematic, const std::vector<core::Property>
     return loader(&stream);
 }
 
-void storePropertySection(std::vector<core::Property> &properties, const std::string &prefix,
+void storePropertySection(std::vector<room::Property> &properties, const std::string &prefix,
                           const std::vector<std::string> &lines)
 {
     properties.erase(std::remove_if(properties.begin(), properties.end(),
-                                    [&](const core::Property &prop) { return prop.name == prefix; }),
+                                    [&](const room::Property &prop) { return prop.name == prefix; }),
                      properties.end());
     for (const std::string &line : lines) {
         properties.push_back({prefix, line});
     }
 }
 
-std::string sourceFormatFromContent(const core::CellContent &content)
+std::string sourceFormatFromContent(const room::CellContent &content)
 {
     return content.sourceInfo().format();
 }
 
-const core::Property *findInstanceProperty(const std::vector<core::Property> &props, const std::string &name)
+const room::Property *findInstanceProperty(const std::vector<room::Property> &props, const std::string &name)
 {
-    for (const core::Property &prop : props) {
+    for (const room::Property &prop : props) {
         if (prop.name == name) {
             return &prop;
         }
@@ -115,18 +115,18 @@ const core::Property *findInstanceProperty(const std::vector<core::Property> &pr
     return nullptr;
 }
 
-void copyPropertyIfMissing(std::vector<core::Property> &dest, const std::vector<core::Property> &src,
+void copyPropertyIfMissing(std::vector<room::Property> &dest, const std::vector<room::Property> &src,
                            const std::string &name)
 {
     if (findInstanceProperty(dest, name) != nullptr) {
         return;
     }
-    if (const core::Property *prop = findInstanceProperty(src, name)) {
+    if (const room::Property *prop = findInstanceProperty(src, name)) {
         dest.push_back(*prop);
     }
 }
 
-void mergePreservedSchematicProperties(std::vector<core::Property> &dest, const std::vector<core::Property> &existing)
+void mergePreservedSchematicProperties(std::vector<room::Property> &dest, const std::vector<room::Property> &existing)
 {
     // section.graph / section.Diagrams are synced explicitly on save — never preserve stale geometry.
     for (const char *key : {"section.launcher", "section.v", "section.s", "section.e",
@@ -165,21 +165,21 @@ std::vector<std::string> diagramLinesFromSchText(const std::string &schText)
     return lines;
 }
 
-void mergeInstanceMetadata(core::Instance &inst, const std::vector<core::Property> &existingProps)
+void mergeInstanceMetadata(room::Instance &inst, const std::vector<room::Property> &existingProps)
 {
-    for (const char *key : {"core.primitive", "qucs.type", "qucs.model", "symname", "param.0", "param.1", "lab",
+    for (const char *key : {"room.primitive", "qucs.type", "qucs.model", "symname", "param.0", "param.1", "lab",
                             "format", "only_toplevel", "tclcommand", "descr", "value"}) {
         if (findInstanceProperty(inst.properties(), key) == nullptr) {
-            if (const core::Property *prop = findInstanceProperty(existingProps, key)) {
+            if (const room::Property *prop = findInstanceProperty(existingProps, key)) {
                 inst.properties().push_back(*prop);
             }
         }
     }
 }
 
-void setOrReplaceProperty(std::vector<core::Property> &props, const std::string &name, const std::string &value)
+void setOrReplaceProperty(std::vector<room::Property> &props, const std::string &name, const std::string &value)
 {
-    for (core::Property &prop : props) {
+    for (room::Property &prop : props) {
         if (prop.name == name) {
             prop.value = value;
             return;
@@ -188,29 +188,29 @@ void setOrReplaceProperty(std::vector<core::Property> &props, const std::string 
     props.push_back({name, value});
 }
 
-void removePropertiesWithName(std::vector<core::Property> &props, const std::string &name)
+void removePropertiesWithName(std::vector<room::Property> &props, const std::string &name)
 {
     props.erase(std::remove_if(props.begin(), props.end(),
-                               [&](const core::Property &prop) { return prop.name == name; }),
+                               [&](const room::Property &prop) { return prop.name == name; }),
                 props.end());
 }
 
-core::Instance instanceFromEditorLine(const std::string &line, double dbuPerEditorUnit, core::QucsImporter &importer)
+room::Instance instanceFromEditorLine(const std::string &line, double dbuPerEditorUnit, room::QucsImporter &importer)
 {
-    core::Instance inst = importer.parseComponentLinePublic(line);
-    inst.transform().x = core::editorUnitsToDbu(static_cast<double>(inst.transform().x), dbuPerEditorUnit);
-    inst.transform().y = core::editorUnitsToDbu(static_cast<double>(inst.transform().y), dbuPerEditorUnit);
-    for (core::Property &prop : inst.properties()) {
+    room::Instance inst = importer.parseComponentLinePublic(line);
+    inst.transform().x = room::editorUnitsToDbu(static_cast<double>(inst.transform().x), dbuPerEditorUnit);
+    inst.transform().y = room::editorUnitsToDbu(static_cast<double>(inst.transform().y), dbuPerEditorUnit);
+    for (room::Property &prop : inst.properties()) {
         if (prop.name == "textX" || prop.name == "textY") {
-            prop.value = std::to_string(core::editorUnitsToDbu(std::stoll(prop.value), dbuPerEditorUnit));
+            prop.value = std::to_string(room::editorUnitsToDbu(std::stoll(prop.value), dbuPerEditorUnit));
         }
     }
     return inst;
 }
 
 /*! Connect isolated LibComp/Port pins to the nearest wire endpoint (one-to-one, small tolerance).
- *  Fixes Xschem-origin CORE loads where wire paths stop a few grid units short of CORE symbol pins. */
-void repairIsolatedCorePortNodes(Schematic *schematic)
+ *  Fixes Xschem-origin ROOM loads where wire paths stop a few grid units short of ROOM symbol pins. */
+void repairIsolatedRoomPortNodes(Schematic *schematic)
 {
     if (schematic == nullptr) {
         return;
@@ -287,11 +287,11 @@ void repairIsolatedCorePortNodes(Schematic *schematic)
     }
 }
 
-QPoint coreTermToEditor(const core::Term &term, double dbuPerEditorUnit, qint64 coordDivisor)
+QPoint roomTermToEditor(const room::Term &term, double dbuPerEditorUnit, qint64 coordDivisor)
 {
     const qint64 divisor = coordDivisor > 0 ? coordDivisor : 1;
-    const int x = static_cast<int>(std::llround(core::dbuToEditorUnits(term.position().x, dbuPerEditorUnit) / divisor));
-    const int y = static_cast<int>(std::llround(core::dbuToEditorUnits(term.position().y, dbuPerEditorUnit) / divisor));
+    const int x = static_cast<int>(std::llround(room::dbuToEditorUnits(term.position().x, dbuPerEditorUnit) / divisor));
+    const int y = static_cast<int>(std::llround(room::dbuToEditorUnits(term.position().y, dbuPerEditorUnit) / divisor));
     return QPoint(x, y);
 }
 
@@ -343,9 +343,9 @@ void mergeNodeIntoNetAnchor(std::unordered_map<std::string, Node *> &anchors, co
     }
 }
 
-/*! Bind Qucs nodes to CORE named nets (Vin/Vout/Gnd/Vdd) for hierarchical netlist export.
- *  Uses xschem pin geometry from the CORE block — not Qucs .lib pin artwork. */
-void mergeNodesByCoreNamedNets(Schematic *schematic, const core::Block &block, double dbuPerEditorUnit,
+/*! Bind Qucs nodes to ROOM named nets (Vin/Vout/Gnd/Vdd) for hierarchical netlist export.
+ *  Uses xschem pin geometry from the ROOM block — not Qucs .lib pin artwork. */
+void mergeNodesByRoomNamedNets(Schematic *schematic, const room::Block &block, double dbuPerEditorUnit,
                                qint64 coordDivisor, bool requireLibPinsEnv = true)
 {
     if (schematic == nullptr
@@ -355,8 +355,8 @@ void mergeNodesByCoreNamedNets(Schematic *schematic, const core::Block &block, d
 
     std::unordered_map<std::string, Node *> anchors;
 
-    auto portLabelFromInstance = [](const core::Instance &inst) -> std::string {
-        for (const core::Property &prop : inst.properties()) {
+    auto portLabelFromInstance = [](const room::Instance &inst) -> std::string {
+        for (const room::Property &prop : inst.properties()) {
             if (prop.name == "lab" && !prop.value.empty()) {
                 return prop.value;
             }
@@ -364,8 +364,8 @@ void mergeNodesByCoreNamedNets(Schematic *schematic, const core::Block &block, d
         return {};
     };
 
-    // Hierarchical ports (iopin.sym → Qucs Port): bind by CORE lab before FET merges.
-    for (const core::Instance &inst : block.instances()) {
+    // Hierarchical ports (iopin.sym → Qucs Port): bind by ROOM lab before FET merges.
+    for (const room::Instance &inst : block.instances()) {
         if (inst.cellName().find("iopin") == std::string::npos) {
             continue;
         }
@@ -374,7 +374,7 @@ void mergeNodesByCoreNamedNets(Schematic *schematic, const core::Block &block, d
             continue;
         }
         QString instName;
-        for (const core::Property &prop : inst.properties()) {
+        for (const room::Property &prop : inst.properties()) {
             if (prop.name == "name") {
                 instName = QString::fromStdString(prop.value);
                 break;
@@ -395,7 +395,7 @@ void mergeNodesByCoreNamedNets(Schematic *schematic, const core::Block &block, d
         }
     }
 
-    // Qucs Port components (CORE export): bind by Num/lab property when iopin name match missed.
+    // Qucs Port components (ROOM export): bind by Num/lab property when iopin name match missed.
     for (Component *pc : schematic->a_DocComps) {
         if (pc == nullptr || pc->Model != QLatin1String("Port") || pc->Props.isEmpty() || pc->Ports.isEmpty()) {
             continue;
@@ -410,16 +410,16 @@ void mergeNodesByCoreNamedNets(Schematic *schematic, const core::Block &block, d
         }
     }
 
-    // Do not snap arbitrary CORE net terms here: Xschem-origin term coords often land on the
+    // Do not snap arbitrary ROOM net terms here: Xschem-origin term coords often land on the
     // wrong Qucs node and collapse Gnd/Vdd/Vout.  Boundary ports (iopin) and FET roles below.
 
-    for (const core::Instance &inst : block.instances()) {
-        if (!core::isIhpFetModel(core::pinRetargetModelName(inst))) {
+    for (const room::Instance &inst : block.instances()) {
+        if (!room::isIhpFetModel(room::pinRetargetModelName(inst))) {
             continue;
         }
 
         QString instName;
-        for (const core::Property &prop : inst.properties()) {
+        for (const room::Property &prop : inst.properties()) {
             if (prop.name == "name") {
                 instName = QString::fromStdString(prop.value);
                 break;
@@ -463,7 +463,7 @@ void mergeNodesByCoreNamedNets(Schematic *schematic, const core::Block &block, d
         }
     }
 
-    // Boundary Port nodes are bound above via iopin.sym lab= in the CORE block (analogLib interop).
+    // Boundary Port nodes are bound above via iopin.sym lab= in the ROOM block (analogLib interop).
     // Props.Type is always "analog" — not a net name.
 }
 
@@ -581,13 +581,13 @@ void propagateSchematicNetNames(Schematic *schematic)
 
 } // namespace
 
-void repairCoreSchematicConnectivity(Schematic *schematic)
+void repairRoomSchematicConnectivity(Schematic *schematic)
 {
-    repairIsolatedCorePortNodes(schematic);
+    repairIsolatedRoomPortNodes(schematic);
     propagateSchematicNetNames(schematic);
 }
 
-IoResult loadCoreFileDirect(const QString &corePath, Schematic *schematic)
+IoResult loadRoomFileDirect(const QString &roomPath, Schematic *schematic)
 {
     IoResult result;
     if (schematic == nullptr) {
@@ -596,73 +596,73 @@ IoResult loadCoreFileDirect(const QString &corePath, Schematic *schematic)
     }
 
     try {
-        const core::Database db = core::Database::loadFromFile(corePath.toStdString());
-        const QString cellName = cellNameFromCorePath(corePath);
+        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
-            result.message = QObject::tr("Failed to determine cell name from CORE file.");
+            result.message = QObject::tr("Failed to determine cell name from ROOM file.");
             return result;
         }
 
-        const core::Cell *cell = db.lib().findCell(cellName.toStdString());
+        const room::Cell *cell = db.lib().findCell(cellName.toStdString());
         if (cell == nullptr) {
-            result.message = QObject::tr("CORE file contains no matching cell.");
+            result.message = QObject::tr("ROOM file contains no matching cell.");
             return result;
         }
 
-        const core::ViewType viewType = isCoreSymbolPath(corePath) ? core::ViewType::Symbol : core::ViewType::Schematic;
-        const core::CellContent *content = cell->findContent(viewType);
+        const room::ViewType viewType = isRoomSymbolPath(roomPath) ? room::ViewType::Symbol : room::ViewType::Schematic;
+        const room::CellContent *content = cell->findContent(viewType);
         if (content == nullptr) {
-            result.message = QObject::tr("CORE file has no view data for this document.");
+            result.message = QObject::tr("ROOM file has no view data for this document.");
             return result;
         }
 
-        if (!isCoreSymbolPath(corePath)) {
+        if (!isRoomSymbolPath(roomPath)) {
             QString schText;
-            const IoResult exported = exportCoreViewToString(corePath, schText);
+            const IoResult exported = exportRoomViewToString(roomPath, schText);
             if (!exported.ok) {
                 result.message = exported.message;
                 return result;
             }
-            schematic->setDocName(corePath);
+            schematic->setDocName(roomPath);
             if (!schematic->loadDocumentFromText(schText)) {
-                result.message = QObject::tr("Failed to load CORE schematic via Qucs export.");
+                result.message = QObject::tr("Failed to load ROOM schematic via Qucs export.");
                 return result;
             }
-            repairCoreSchematicConnectivity(schematic);
-            schematic->setFileInfo(corePath);
-            schematic->setName(corePath);
-            schematic->setCoreCoordDivisor(1);
+            repairRoomSchematicConnectivity(schematic);
+            schematic->setFileInfo(roomPath);
+            schematic->setName(roomPath);
+            schematic->setRoomCoordDivisor(1);
             result.ok = true;
             return result;
         }
 
         const double dbuPerEditorUnit = content->dbuPerEditorUnit();
         const std::string sourceFormat = sourceFormatFromContent(*content);
-        core::QucsExporter exporter(exporterOptionsFromEnvironment());
+        room::QucsExporter exporter(exporterOptionsFromEnvironment());
 
-        const qint64 coordDivisor = isCoreSymbolPath(corePath)
+        const qint64 coordDivisor = isRoomSymbolPath(roomPath)
                                         ? 1
-                                        : core::qucs_codec::computeDisplayDivisor(content->block(), content->layers(),
+                                        : room::qucs_codec::computeDisplayDivisor(content->block(), content->layers(),
                                                                                    dbuPerEditorUnit);
 
-        g_coreBridgeActive = true;
+        g_roomBridgeActive = true;
 
         if (!loadPropertySection(schematic, content->properties(), "schematic.view", QStringLiteral("<Properties>"),
-                                 [&](QTextStream *stream) { return schematic->loadCoreProperties(stream); })) {
-            g_coreBridgeActive = false;
-            result.message = QObject::tr("Failed to load CORE schematic properties.");
+                                 [&](QTextStream *stream) { return schematic->loadRoomProperties(stream); })) {
+            g_roomBridgeActive = false;
+            result.message = QObject::tr("Failed to load ROOM schematic properties.");
             return result;
         }
 
         std::vector<std::string> symbolLines =
-            core::qucs_codec::collectProperties(content->properties(), "section.Symbol");
-        if (symbolLines.empty() && isCoreSymbolPath(corePath)) {
+            room::qucs_codec::collectProperties(content->properties(), "section.Symbol");
+        if (symbolLines.empty() && isRoomSymbolPath(roomPath)) {
             symbolLines = exporter.symbolLinesForCell(db, cellName.toStdString());
             for (const std::string &warning : exporter.warnings()) {
-                qWarning() << "CORE symbol generation warning:" << QString::fromStdString(warning);
+                qWarning() << "ROOM symbol generation warning:" << QString::fromStdString(warning);
             }
             if (!exporter.errors().empty()) {
-                g_coreBridgeActive = false;
+                g_roomBridgeActive = false;
                 result.message = QString::fromStdString(exporter.errors().front());
                 return result;
             }
@@ -679,32 +679,32 @@ IoResult loadCoreFileDirect(const QString &corePath, Schematic *schematic)
             buffer += QStringLiteral("</Symbol>\n");
             QTextStream stream(&buffer, QIODevice::ReadOnly);
             stream.readLine();
-            if (!schematic->loadCorePaintings(&stream, &schematic->a_SymbolPaints)) {
-                g_coreBridgeActive = false;
-                result.message = QObject::tr("Failed to load CORE symbol section.");
+            if (!schematic->loadRoomPaintings(&stream, &schematic->a_SymbolPaints)) {
+                g_roomBridgeActive = false;
+                result.message = QObject::tr("Failed to load ROOM symbol section.");
                 return result;
             }
         }
 
-        g_coreBridgeActive = false;
-        schematic->setFileInfo(corePath);
-        schematic->setName(corePath);
-        schematic->setCoreCoordDivisor(coordDivisor);
+        g_roomBridgeActive = false;
+        schematic->setFileInfo(roomPath);
+        schematic->setName(roomPath);
+        schematic->setRoomCoordDivisor(coordDivisor);
 
         for (const std::string &warning : exporter.warnings()) {
-            qWarning() << "CORE direct load warning:" << QString::fromStdString(warning);
+            qWarning() << "ROOM direct load warning:" << QString::fromStdString(warning);
         }
 
         result.ok = true;
         return result;
     } catch (const std::exception &ex) {
-        g_coreBridgeActive = false;
+        g_roomBridgeActive = false;
         result.message = QString::fromStdString(ex.what());
         return result;
     }
 }
 
-IoResult saveSchematicToCoreFileDirect(Schematic *schematic, const QString &corePath)
+IoResult saveSchematicToRoomFileDirect(Schematic *schematic, const QString &roomPath)
 {
     IoResult result;
     if (schematic == nullptr) {
@@ -712,32 +712,32 @@ IoResult saveSchematicToCoreFileDirect(Schematic *schematic, const QString &core
         return result;
     }
 
-    const CoreFileLockInfo lockInfo = readCoreLockFile(corePath);
-    if (lockInfo.present && !isStaleCoreLock(lockInfo) && !isCoreLockHeldByCurrentProcess(lockInfo)
-        && coreLockRefCount(QFileInfo(corePath).absoluteFilePath()) == 0) {
-        result.message = QObject::tr("Cannot save: %1").arg(formatCoreLockStatusLine(lockInfo));
+    const RoomFileLockInfo lockInfo = readRoomLockFile(roomPath);
+    if (lockInfo.present && !isStaleRoomLock(lockInfo) && !isRoomLockHeldByCurrentProcess(lockInfo)
+        && roomLockRefCount(QFileInfo(roomPath).absoluteFilePath()) == 0) {
+        result.message = QObject::tr("Cannot save: %1").arg(formatRoomLockStatusLine(lockInfo));
         return result;
     }
 
     try {
-        const QString cellName = cellNameFromCorePath(corePath);
+        const QString cellName = cellNameFromRoomPath(roomPath);
 
-        core::QucsImporter importer(importerOptionsFromCorePath(corePath));
-        const core::ViewType viewType = isCoreSymbolPath(corePath) ? core::ViewType::Symbol : core::ViewType::Schematic;
+        room::QucsImporter importer(importerOptionsFromRoomPath(roomPath));
+        const room::ViewType viewType = isRoomSymbolPath(roomPath) ? room::ViewType::Symbol : room::ViewType::Schematic;
 
-        core::Block block;
-        const double dbuPerEditorUnit = isCoreSymbolPath(corePath) ? core::kXschemDbuPerEditorUnit : core::kQucsDbuPerEditorUnit;
+        room::Block block;
+        const double dbuPerEditorUnit = isRoomSymbolPath(roomPath) ? room::kXschemDbuPerEditorUnit : room::kQucsDbuPerEditorUnit;
         std::string sourceFormat;
-        const core::CellContent *existingContent = nullptr;
-        std::unordered_map<std::string, std::vector<core::Property>> existingInstProps;
-        if (QFileInfo::exists(corePath)) {
-            const core::Database existingDb = core::Database::loadFromFile(corePath.toStdString());
-            if (const core::Cell *existingCell = existingDb.lib().findCell(cellName.toStdString())) {
+        const room::CellContent *existingContent = nullptr;
+        std::unordered_map<std::string, std::vector<room::Property>> existingInstProps;
+        if (QFileInfo::exists(roomPath)) {
+            const room::Database existingDb = room::Database::loadFromFile(roomPath.toStdString());
+            if (const room::Cell *existingCell = existingDb.lib().findCell(cellName.toStdString())) {
                 existingContent = existingCell->findContent(viewType);
                 if (existingContent != nullptr) {
                     sourceFormat = sourceFormatFromContent(*existingContent);
-                    for (const core::Instance &inst : existingContent->block().instances()) {
-                        if (const core::Property *name = findInstanceProperty(inst.properties(), "name")) {
+                    for (const room::Instance &inst : existingContent->block().instances()) {
+                        if (const room::Property *name = findInstanceProperty(inst.properties(), "name")) {
                             existingInstProps[name->value] = inst.properties();
                         }
                     }
@@ -745,14 +745,14 @@ IoResult saveSchematicToCoreFileDirect(Schematic *schematic, const QString &core
             }
         }
 
-        g_coreBridgeActive = true;
+        g_roomBridgeActive = true;
 
-        if (!isCoreSymbolPath(corePath)) {
+        if (!isRoomSymbolPath(roomPath)) {
             repairPortNetNamesFromWires(schematic);
             for (Component *component : schematic->a_DocComps) {
                 const std::string line = component->save().toStdString();
-                std::string scaled = schematic->coreCoordDivisor() > 1
-                                         ? core::qucs_codec::scaleComponentLineCoordinates(line, schematic->coreCoordDivisor(),
+                std::string scaled = schematic->roomCoordDivisor() > 1
+                                         ? room::qucs_codec::scaleComponentLineCoordinates(line, schematic->roomCoordDivisor(),
                                                                                            true)
                                          : line;
                 block.instances().push_back(instanceFromEditorLine(scaled, dbuPerEditorUnit, importer));
@@ -761,8 +761,8 @@ IoResult saveSchematicToCoreFileDirect(Schematic *schematic, const QString &core
             std::vector<std::string> wireLines;
             for (Wire *wire : schematic->a_DocWires) {
                 std::string line = wire->save().toStdString();
-                if (schematic->coreCoordDivisor() > 1) {
-                    line = core::qucs_codec::scaleWireLineCoordinates(line, schematic->coreCoordDivisor(), true);
+                if (schematic->roomCoordDivisor() > 1) {
+                    line = room::qucs_codec::scaleWireLineCoordinates(line, schematic->roomCoordDivisor(), true);
                 }
                 wireLines.push_back(line);
             }
@@ -771,33 +771,33 @@ IoResult saveSchematicToCoreFileDirect(Schematic *schematic, const QString &core
                     continue;
                 }
                 std::string line = node->label()->save().toStdString();
-                if (schematic->coreCoordDivisor() > 1) {
-                    line = core::qucs_codec::scaleWireLineCoordinates(line, schematic->coreCoordDivisor(), true);
+                if (schematic->roomCoordDivisor() > 1) {
+                    line = room::qucs_codec::scaleWireLineCoordinates(line, schematic->roomCoordDivisor(), true);
                 }
                 wireLines.push_back(line);
             }
             importer.importWireLines(block, wireLines, dbuPerEditorUnit);
 
-            for (core::Instance &inst : block.instances()) {
-                if (const core::Property *name = findInstanceProperty(inst.properties(), "name")) {
+            for (room::Instance &inst : block.instances()) {
+                if (const room::Property *name = findInstanceProperty(inst.properties(), "name")) {
                     const auto it = existingInstProps.find(name->value);
                     if (it != existingInstProps.end()) {
                         mergeInstanceMetadata(inst, it->second);
                     }
                 }
             }
-            core::xschem::annotateBlockForStorage(block);
+            room::xschem::annotateBlockForStorage(block);
         }
 
         QString schText;
         schematic->saveDocumentToText(schText);
-        if (schematic->coreCoordDivisor() > 1) {
-            qucs_core::denormalizeSchCoordinatesInMemory(schText, schematic->coreCoordDivisor());
+        if (schematic->roomCoordDivisor() > 1) {
+            qucs_room::denormalizeSchCoordinatesInMemory(schText, schematic->roomCoordDivisor());
         }
         const std::string schUtf8 = schText.toUtf8().constData();
-        core::Database mergedDb = importer.importText(schUtf8, cellName.toStdString());
-        core::Cell &mergedCell = mergedDb.lib().getOrCreateCell(cellName.toStdString());
-        core::CellContent &mergedContent = mergedCell.getOrCreateContent(viewType, dbuPerEditorUnit);
+        room::Database mergedDb = importer.importText(schUtf8, cellName.toStdString());
+        room::Cell &mergedCell = mergedDb.lib().getOrCreateCell(cellName.toStdString());
+        room::CellContent &mergedContent = mergedCell.getOrCreateContent(viewType, dbuPerEditorUnit);
         mergedContent.block() = std::move(block);
         mergedContent.setDbuPerEditorUnit(dbuPerEditorUnit);
         mergedContent.setDbuPerMicron(dbuPerEditorUnit);
@@ -818,67 +818,67 @@ IoResult saveSchematicToCoreFileDirect(Schematic *schematic, const QString &core
             return lines;
         }();
         if (!diagramLines.empty()) {
-            core::xschem::replaceSectionLines(mergedContent.properties(), "section.Diagrams", diagramLines);
+            room::xschem::replaceSectionLines(mergedContent.properties(), "section.Diagrams", diagramLines);
         } else if (existingContent != nullptr) {
             std::vector<std::string> existingDiagrams;
-            for (const core::Property &prop : existingContent->properties()) {
+            for (const room::Property &prop : existingContent->properties()) {
                 if (prop.name == "section.Diagrams") {
                     existingDiagrams.push_back(prop.value);
                 }
             }
             if (!existingDiagrams.empty()) {
-                core::xschem::replaceSectionLines(mergedContent.properties(), "section.Diagrams", existingDiagrams);
+                room::xschem::replaceSectionLines(mergedContent.properties(), "section.Diagrams", existingDiagrams);
             } else {
-                core::xschem::copyAllSectionLinesIfMissing(mergedContent.properties(), existingContent->properties(),
+                room::xschem::copyAllSectionLinesIfMissing(mergedContent.properties(), existingContent->properties(),
                                                             "section.Diagrams");
             }
         }
         if (existingContent != nullptr) {
             mergePreservedSchematicProperties(mergedContent.properties(), existingContent->properties());
         }
-        core::xschem::removeInvalidGraphProperties(mergedContent.properties());
+        room::xschem::removeInvalidGraphProperties(mergedContent.properties());
         // Qucs save: diagram geometry is authoritative — rewrite section.graph to match.
-        core::xschem::syncDualToolGraphProperties(mergedContent.block(), mergedContent,
-                                                  core::xschem::GraphSyncDirection::FromQucsDiagram);
-        removePropertiesWithName(mergedContent.properties(), core::kSourceFormatKey);
-        removePropertiesWithName(mergedContent.properties(), core::kSourceToolVersionKey);
-        removePropertiesWithName(mergedContent.properties(), core::kSourceFileVersionKey);
-        removePropertiesWithName(mergedContent.properties(), core::kSourceCommentsKey);
+        room::xschem::syncDualToolGraphProperties(mergedContent.block(), mergedContent,
+                                                  room::xschem::GraphSyncDirection::FromQucsDiagram);
+        removePropertiesWithName(mergedContent.properties(), room::kSourceFormatKey);
+        removePropertiesWithName(mergedContent.properties(), room::kSourceToolVersionKey);
+        removePropertiesWithName(mergedContent.properties(), room::kSourceFileVersionKey);
+        removePropertiesWithName(mergedContent.properties(), room::kSourceCommentsKey);
         mergedContent.sourceInfo().setFormat("qucs_s");
         mergedContent.sourceInfo().setToolVersion(PACKAGE_VERSION);
         {
-            core::PrimitiveResolver resolver;
+            room::PrimitiveResolver resolver;
             resolver.loadFromEnvironment();
-            core::canonicalizeBlockPrimitives(mergedContent.block(), &resolver);
-            core::propagateNetNames(mergedContent.block(), &resolver, dbuPerEditorUnit);
+            room::canonicalizeBlockPrimitives(mergedContent.block(), &resolver);
+            room::propagateNetNames(mergedContent.block(), &resolver, dbuPerEditorUnit);
         }
         Q_UNUSED(sourceFormat);
-        g_coreBridgeActive = false;
+        g_roomBridgeActive = false;
 
-        const core::ParsedCorePath parsed = core::parseCoreFilePath(corePath.toStdString());
-        const core::ViewType saveView =
-            parsed.valid ? parsed.view : isCoreSymbolPath(corePath) ? core::ViewType::Symbol : core::ViewType::Schematic;
+        const room::ParsedRoomPath parsed = room::parseRoomFilePath(roomPath.toStdString());
+        const room::ViewType saveView =
+            parsed.valid ? parsed.view : isRoomSymbolPath(roomPath) ? room::ViewType::Symbol : room::ViewType::Schematic;
 
-        mergedDb.setGenerator("CORE qucs_s");
+        mergedDb.setGenerator("ROOM qucs_s");
         mergedDb.setTechnology("qucs");
-        mergedDb.saveToFile(corePath.toStdString(), saveView);
+        mergedDb.saveToFile(roomPath.toStdString(), saveView);
 
-        if (!QFileInfo::exists(corePath)) {
-            result.message = QObject::tr("CORE save did not create an output file.");
+        if (!QFileInfo::exists(roomPath)) {
+            result.message = QObject::tr("ROOM save did not create an output file.");
             return result;
         }
 
         for (const std::string &warning : importer.warnings()) {
-            qWarning() << "CORE direct save warning:" << QString::fromStdString(warning);
+            qWarning() << "ROOM direct save warning:" << QString::fromStdString(warning);
         }
 
         result.ok = true;
         return result;
     } catch (const std::exception &ex) {
-        g_coreBridgeActive = false;
+        g_roomBridgeActive = false;
         result.message = QString::fromStdString(ex.what());
         return result;
     }
 }
 
-} // namespace qucs_core
+} // namespace qucs_room
