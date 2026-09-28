@@ -19,7 +19,7 @@
 # include <config.h>
 #endif
 
-#include <QtRoom>
+#include <QtCore>
 #include <QMessageBox>
 #include <QDir>
 #include <QStringList>
