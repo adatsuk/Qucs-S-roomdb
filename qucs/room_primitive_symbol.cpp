@@ -38,7 +38,7 @@ room::PrimitiveResolver buildResolver(const room::QucsExporter::Options &options
         resolver.setQucsLibrary(options.qucsPrimitiveLib);
     }
     for (const std::string &path : options.primitiveCorePaths) {
-        resolver.addRoomPath(path);
+        resolver.addCorePath(path);
     }
     if (options.primitiveCorePaths.empty()) {
         resolver.loadFromEnvironment();
