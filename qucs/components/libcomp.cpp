@@ -22,6 +22,7 @@
 #include "extsimkernels/qucs2spice.h"
 #include "extsimkernels/spicecompat.h"
 #include "extsimkernels/abstractspicekernel.h"
+#include "extsimkernels/s2spice.h"
 #include "schematic.h"
 
 #ifdef QUCS_ENABLE_ROOM
@@ -476,6 +477,31 @@ bool LibComp::createSubNetlist(QTextStream *stream, QStringList &FileList,
   QStringList Includes;
 
 #ifdef QUCS_ENABLE_ROOM
+  // Layout-lookalike cells (em.lookalike=1): netlist from published emmodel Touchstone via S2Spice.
+  // Do not fall through to schematic hierarchy for lookalike symbols.
+  if ((type & 8) || (type & 16)) {
+    QString hint;
+    if (containingSchematic) {
+      hint = containingSchematic->getDocName();
+    }
+    if (Props.size() >= 2
+        && qucs_room::roomCellSymbolIsLookalike(Props.at(0)->Value, Props.at(1)->Value, hint)) {
+      qucs_room::RoomEmModelNetlistInfo em;
+      if (!qucs_room::tryLoadRoomEmModelNetlist(Props.at(0)->Value, Props.at(1)->Value, em, hint)
+          || em.snpPath.isEmpty()) {
+        return false;
+      }
+      S2Spice conv;
+      conv.setFile(em.snpPath);
+      conv.setZ0(em.z0);
+      conv.setDeviceName(createType());
+      if (!conv.convertTouchstone(stream)) {
+        return false;
+      }
+      return true;
+    }
+  }
+
   // Hierarchical ROOM cell (e.g. module_0_foundations/inverter): emit .SUBCKT from schematic.room.
   if ((type & 8) || (type & 16)) {
     QString roomSch;
@@ -695,20 +721,27 @@ QString LibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
 
     QString s = SpiceModel + Name;
     bool prependImplicitGnd = false;
+    bool appendLookalikeRefGnd = false;
 #ifdef QUCS_ENABLE_ROOM
     QString roomSch;
     QString hint;
     if (containingSchematic) {
         hint = containingSchematic->getDocName();
     }
-    const bool isRoomHierarchy = Props.size() >= 2
+    qucs_room::RoomEmModelNetlistInfo em;
+    const bool isLookalikeEm = Props.size() >= 2
+        && qucs_room::tryLoadRoomEmModelNetlist(Props.at(0)->Value, Props.at(1)->Value, em, hint)
+        && em.lookalike;
+    const bool isRoomHierarchy = !isLookalikeEm && Props.size() >= 2
         && qucs_room::tryResolveRoomSchematic(Props.at(0)->Value, Props.at(1)->Value, roomSch, hint);
+    // S2Spice .SUBCKT has ports 1..N plus a trailing reference node — tie it to gnd.
+    appendLookalikeRefGnd = isLookalikeEm;
 #else
     const bool isRoomHierarchy = false;
 #endif
     // Traditional Qucs .lib subcircuits prepend an implicit gnd node. ROOM hierarchies
     // (module_0_foundations/inverter, …) expose Gnd as an explicit port.
-    if (!isRoomHierarchy && Props.size() >= 1) {
+    if (!isRoomHierarchy && !appendLookalikeRefGnd && Props.size() >= 1) {
         QFile libFile;
         if (openQucsLibraryFile(Props.at(0)->Value, containingSchematic, libFile)) {
             prependImplicitGnd = true;
@@ -723,10 +756,13 @@ QString LibComp::spice_netlist(spicecompat::SpiceDialect dialect /* = spicecompa
       }
       s += QStringLiteral(" ") + spicecompat::normalize_node_name(p1->Connection->Name);
     }
+    if (appendLookalikeRefGnd) {
+        s += QStringLiteral(" 0");
+    }
     s += " " + createType();
 
     // output user defined parameters
-    if (!isRoomHierarchy) {
+    if (!isRoomHierarchy && !appendLookalikeRefGnd) {
         const QString lib = Props.size() > 0 ? Props.at(0)->Value.trimmed() : QString();
         const QString comp = Props.size() > 1 ? Props.at(1)->Value.trimmed() : QString();
         for (int i = 2; i < Props.size(); i++) {

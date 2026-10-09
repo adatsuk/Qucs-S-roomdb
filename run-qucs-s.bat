@@ -33,14 +33,11 @@ if not defined PDK set "PDK=ihp-sg13g2"
 set "PDK_ROOT=%PDK_ROOT%"
 set "PDK=%PDK%"
 
-rem Ensure Qucs user_lib has IHP libraries (one-time copy if missing).
-if not exist "%USERPROFILE%\.qucs\user_lib\IHP_PDK_nonlinear_components.lib" (
-  if defined PDK_ROOT (
-    if exist "%PDK_ROOT%\%PDK%\libs.tech\qucs-s\user_lib\IHP_PDK_nonlinear_components.lib" (
-      mkdir "%USERPROFILE%\.qucs\user_lib" 2>nul
-      copy /Y "%PDK_ROOT%\%PDK%\libs.tech\qucs-s\user_lib\*.lib" "%USERPROFILE%\.qucs\user_lib\" >nul
-    )
-  )
+rem Sync User Libraries: IHP + QUCS_EXTRA_USER_LIBS + design stubs from LibMan env / opened view.
+rem Qucs-S reads User Libraries from %%USERPROFILE%%\QucsWorkspace\user_lib
+rem Pass CORE_PRIMITIVE_LIBS_FILE explicitly — child powershell sometimes misses bat env.
+if exist "%ROOT%sync-qucs-user-libs.ps1" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%sync-qucs-user-libs.ps1" -OpenedView "%~1" -PdkRoot "%PDK_ROOT%" -Pdk "%PDK%" -PrimitiveLibsFile "%CORE_PRIMITIVE_LIBS_FILE%"
 )
 
 start "" "%EXE%" %*

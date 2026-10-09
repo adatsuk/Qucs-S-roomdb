@@ -2,13 +2,14 @@
 
 #include "room_schematic_io.h"
 #include "database.h"
+#include "enums.h"
 #include "primitive_resolver.h"
+#include "property.h"
 #include "qucs_exporter.h"
 
 #include <QDir>
 #include <QFileInfo>
 
-#include "room_schematic_io.h"
 #include <QProcessEnvironment>
 #include <QRegularExpression>
 
@@ -65,7 +66,175 @@ std::vector<std::string> candidateRefs(const QString &compName, const std::strin
     return refs;
 }
 
+QString normalizeViewName(const QString &viewName)
+{
+    const QString lower = viewName.trimmed().toLower();
+    if (lower == QStringLiteral("sch")) {
+        return QStringLiteral("schematic");
+    }
+    if (lower == QStringLiteral("sym")) {
+        return QStringLiteral("symbol");
+    }
+    if (lower == QStringLiteral("em_model")) {
+        return QStringLiteral("emmodel");
+    }
+    return lower;
+}
+
+QString viewFileSuffix(const QString &viewName)
+{
+    return QStringLiteral(".") + normalizeViewName(viewName) + QStringLiteral(".room");
+}
+
+QString rewriteRoomViewSuffix(QString path, const QString &targetView)
+{
+    path = QDir::cleanPath(path);
+    const QString target = viewFileSuffix(targetView);
+    static const QStringList kKnown = {
+        QStringLiteral(".schematic.room"), QStringLiteral(".symbol.room"),
+        QStringLiteral(".sym.room"),       QStringLiteral(".emmodel.room"),
+        QStringLiteral(".layout.room"),    QStringLiteral(".emsetup.room"),
+    };
+    for (const QString &suf : kKnown) {
+        if (path.endsWith(suf, Qt::CaseInsensitive)) {
+            path.chop(suf.size());
+            return path + target;
+        }
+    }
+    if (path.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
+        // Bare / unknown *.room — append is unsafe; leave unchanged.
+        return path;
+    }
+    return path + target;
+}
+
+bool contentHasLookalike(const room::CellContent &content)
+{
+    for (const room::Property &p : content.properties()) {
+        if (p.name == "em.lookalike"
+            && (p.value == "1" || p.value == "true" || p.value == "yes")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString resolveSnpPath(const QString &emModelPath, const QString &snpRaw)
+{
+    if (snpRaw.trimmed().isEmpty()) {
+        return {};
+    }
+    QFileInfo fi(snpRaw);
+    if (fi.isAbsolute()) {
+        return QDir::toNativeSeparators(fi.absoluteFilePath());
+    }
+    const QDir base = QFileInfo(emModelPath).absoluteDir();
+    return QDir::toNativeSeparators(QFileInfo(base, snpRaw).absoluteFilePath());
+}
+
+int portsFromSnpSuffix(const QString &snpPath)
+{
+    const QString ext = QFileInfo(snpPath).suffix().toLower();
+    if (!ext.startsWith(QLatin1Char('s')) || !ext.endsWith(QLatin1Char('p')) || ext.size() < 3) {
+        return 0;
+    }
+    bool ok = false;
+    const int n = ext.mid(1, ext.size() - 2).toInt(&ok);
+    return (ok && n >= 1) ? n : 0;
+}
+
 } // namespace
+
+bool tryResolveRoomView(const QString &libName, const QString &compName, const QString &viewName,
+                        QString &roomPath, const QString &hintDocPath)
+{
+    roomPath.clear();
+    if (compName.trimmed().isEmpty() || viewName.trimmed().isEmpty()) {
+        return false;
+    }
+
+    const QString view = normalizeViewName(viewName);
+    const QString suffix = viewFileSuffix(view);
+
+    auto acceptIfExists = [&](QString path) -> bool {
+        path = rewriteRoomViewSuffix(path, view);
+        path = QDir::cleanPath(path);
+        if (!path.endsWith(suffix, Qt::CaseInsensitive)) {
+            return false;
+        }
+        if (QFileInfo::exists(path)) {
+            roomPath = QDir::toNativeSeparators(path);
+            return true;
+        }
+        return false;
+    };
+
+    const room::QucsExporter::Options options = exporterOptionsFromEnvironment();
+    const room::PrimitiveResolver resolver = buildResolver(options);
+
+    std::vector<std::string> refs = candidateRefs(compName, options.techLibrary);
+    if (!libName.trimmed().isEmpty()) {
+        const std::string lib = libName.trimmed().toStdString();
+        const std::string cell = compName.trimmed().toStdString();
+        refs.insert(refs.begin(), {lib + "/" + cell, lib + "/" + cell + ".sym", cell, cell + ".sym"});
+    }
+
+    room::ResolvedPrimitive resolved;
+    for (const std::string &ref : refs) {
+        resolved = resolver.resolveReference(ref);
+        if (resolved.found) {
+            break;
+        }
+    }
+    // Resolver indexes Symbol views; rewrite to the requested view beside the same cell dir.
+    if (resolved.found && !resolved.roomPath.empty()
+        && acceptIfExists(QString::fromStdString(resolved.roomPath))) {
+        return true;
+    }
+
+    // Sibling-cell fallback: .../lib/inverter_tb/foo.room → .../lib/inverter/inverter.<view>.room
+    if (!hintDocPath.trimmed().isEmpty()) {
+        QDir cellDir = QFileInfo(hintDocPath).absoluteDir();
+        const QString cell = compName.trimmed();
+        if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + suffix))) {
+            return true;
+        }
+        if (cellDir.cdUp()) {
+            if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + suffix))) {
+                return true;
+            }
+            if (!libName.trimmed().isEmpty()
+                && cellDir.dirName().compare(libName.trimmed(), Qt::CaseInsensitive) != 0) {
+                if (cellDir.cdUp()
+                    && acceptIfExists(cellDir.filePath(libName.trimmed() + QLatin1Char('/') + cell
+                                                       + QLatin1Char('/') + cell + suffix))) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+bool tryResolveRoomSchematic(const QString &libName, const QString &compName, QString &schematicRoomPath,
+                             const QString &hintDocPath)
+{
+    return tryResolveRoomView(libName, compName, QStringLiteral("schematic"), schematicRoomPath,
+                              hintDocPath);
+}
+
+bool tryResolveRoomSymbol(const QString &libName, const QString &compName, QString &symbolRoomPath,
+                          const QString &hintDocPath)
+{
+    return tryResolveRoomView(libName, compName, QStringLiteral("symbol"), symbolRoomPath, hintDocPath);
+}
+
+bool tryResolveRoomEmModel(const QString &libName, const QString &compName, QString &emModelRoomPath,
+                           const QString &hintDocPath)
+{
+    return tryResolveRoomView(libName, compName, QStringLiteral("emmodel"), emModelRoomPath, hintDocPath);
+}
 
 bool tryLoadRoomCellSymbol(const QString &libName, const QString &cellName, QString &symbolSection,
                            const QString &hintDocPath)
@@ -75,15 +244,17 @@ bool tryLoadRoomCellSymbol(const QString &libName, const QString &cellName, QStr
         return false;
     }
 
-    QString schematicPath;
-    if (!tryResolveRoomSchematic(libName, cellName, schematicPath, hintDocPath)) {
-        return false;
-    }
-
-    QString symbolPath = schematicPath;
-    symbolPath.replace(QStringLiteral(".schematic.room"), QStringLiteral(".symbol.room"), Qt::CaseInsensitive);
-    if (!QFileInfo::exists(symbolPath)) {
-        return false;
+    QString symbolPath;
+    if (!tryResolveRoomSymbol(libName, cellName, symbolPath, hintDocPath)) {
+        // Legacy: derive from schematic path when symbol resolve failed.
+        QString schematicPath;
+        if (!tryResolveRoomSchematic(libName, cellName, schematicPath, hintDocPath)) {
+            return false;
+        }
+        symbolPath = rewriteRoomViewSuffix(schematicPath, QStringLiteral("symbol"));
+        if (!QFileInfo::exists(symbolPath)) {
+            return false;
+        }
     }
 
     try {
@@ -164,74 +335,79 @@ bool tryLoadRoomPrimitiveSymbol(const QString &compName, QString &symbolSection)
     }
 }
 
-bool tryResolveRoomSchematic(const QString &libName, const QString &compName, QString &schematicRoomPath,
-                             const QString &hintDocPath)
+bool roomCellSymbolIsLookalike(const QString &libName, const QString &cellName,
+                               const QString &hintDocPath)
 {
-    schematicRoomPath.clear();
-    if (compName.trimmed().isEmpty()) {
+    QString symbolPath;
+    if (!tryResolveRoomSymbol(libName, cellName, symbolPath, hintDocPath)) {
+        return false;
+    }
+    try {
+        const room::Database db = room::Database::loadFromFile(symbolPath.toStdString());
+        const std::string cellStd = cellName.trimmed().toStdString();
+        const room::Cell *cell = db.lib().findCell(cellStd);
+        if (!cell && !db.fileSummary().primaryCell.empty()) {
+            cell = db.lib().findCell(db.fileSummary().primaryCell);
+        }
+        if (!cell) {
+            return false;
+        }
+        const room::CellContent *content = cell->findContent(room::ViewType::Symbol);
+        if (!content) {
+            return false;
+        }
+        return contentHasLookalike(*content);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool tryLoadRoomEmModelNetlist(const QString &libName, const QString &cellName,
+                               RoomEmModelNetlistInfo &out, const QString &hintDocPath)
+{
+    out = RoomEmModelNetlistInfo{};
+    if (cellName.trimmed().isEmpty()) {
         return false;
     }
 
-    auto acceptIfExists = [&](QString path) -> bool {
-        path = QDir::cleanPath(path);
-        if (!path.endsWith(QStringLiteral(".schematic.room"), Qt::CaseInsensitive)) {
-            if (path.endsWith(QStringLiteral(".symbol.room"), Qt::CaseInsensitive)) {
-                path.replace(QStringLiteral(".symbol.room"), QStringLiteral(".schematic.room"));
-            } else if (path.endsWith(QStringLiteral(".sym.room"), Qt::CaseInsensitive)) {
-                path.replace(QStringLiteral(".sym.room"), QStringLiteral(".schematic.room"));
-            }
-        }
-        if (QFileInfo::exists(path)) {
-            schematicRoomPath = QDir::toNativeSeparators(path);
-            return true;
-        }
+    out.lookalike = roomCellSymbolIsLookalike(libName, cellName, hintDocPath);
+
+    QString emPath;
+    if (!tryResolveRoomEmModel(libName, cellName, emPath, hintDocPath)) {
         return false;
-    };
-
-    const room::QucsExporter::Options options = exporterOptionsFromEnvironment();
-    const room::PrimitiveResolver resolver = buildResolver(options);
-
-    std::vector<std::string> refs = candidateRefs(compName, options.techLibrary);
-    if (!libName.trimmed().isEmpty()) {
-        const std::string lib = libName.trimmed().toStdString();
-        const std::string cell = compName.trimmed().toStdString();
-        refs.insert(refs.begin(), {lib + "/" + cell, lib + "/" + cell + ".sym", cell, cell + ".sym"});
     }
 
-    room::ResolvedPrimitive resolved;
-    for (const std::string &ref : refs) {
-        resolved = resolver.resolveReference(ref);
-        if (resolved.found) {
-            break;
+    try {
+        const room::Database db = room::Database::loadFromFile(emPath.toStdString());
+        const std::string cellStd = cellName.trimmed().toStdString();
+        const room::Cell *cell = db.lib().findCell(cellStd);
+        if (!cell && !db.fileSummary().primaryCell.empty()) {
+            cell = db.lib().findCell(db.fileSummary().primaryCell);
         }
-    }
-    if (resolved.found && !resolved.roomPath.empty() && acceptIfExists(QString::fromStdString(resolved.roomPath))) {
+        if (!cell) {
+            return false;
+        }
+        const room::CellContent *content = cell->findContent(room::ViewType::EmModel);
+        if (!content || !content->hasEmModelPayload()) {
+            return false;
+        }
+        const room::EmModelViewData &model = content->emModel();
+        const QString snp = resolveSnpPath(emPath, QString::fromStdString(model.snpPath));
+        if (snp.isEmpty() || !QFileInfo::exists(snp)) {
+            return false;
+        }
+
+        out.emModelPath = emPath;
+        out.snpPath = snp;
+        out.z0 = model.z0 > 0.0 ? model.z0 : 50.0;
+        out.portCount = static_cast<int>(model.ports.size());
+        if (out.portCount <= 0) {
+            out.portCount = portsFromSnpSuffix(snp);
+        }
         return true;
+    } catch (...) {
+        return false;
     }
-
-    // Sibling-cell fallback: .../lib/inverter_tb/foo.room → .../lib/inverter/inverter.schematic.room
-    if (!hintDocPath.trimmed().isEmpty()) {
-        QDir cellDir = QFileInfo(hintDocPath).absoluteDir();
-        const QString cell = compName.trimmed();
-        if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + QStringLiteral(".schematic.room")))) {
-            return true;
-        }
-        if (cellDir.cdUp()) {
-            if (acceptIfExists(cellDir.filePath(cell + QLatin1Char('/') + cell + QStringLiteral(".schematic.room")))) {
-                return true;
-            }
-            if (!libName.trimmed().isEmpty() && cellDir.dirName().compare(libName.trimmed(), Qt::CaseInsensitive) != 0) {
-                // hint may be deeper; try libName/cell under parent chain once more
-                if (cellDir.cdUp()
-                    && acceptIfExists(cellDir.filePath(libName.trimmed() + QLatin1Char('/') + cell + QLatin1Char('/')
-                                                       + cell + QStringLiteral(".schematic.room")))) {
-                    return true;
-                }
-            }
-        }
-    }
-
-    return false;
 }
 
 } // namespace qucs_room
