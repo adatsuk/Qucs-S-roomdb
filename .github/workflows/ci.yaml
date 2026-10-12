@@ -56,6 +56,11 @@ jobs:
             -DQUCS_ROOM_SOURCE_DIR="$COMMONDB_ROOT" \
             -DCAPNP_ROOT="$COMMONDB_ROOT/third_party/capnp-install-linux"
           cmake --build Qucs-S-roomdb/build --target qucs-s translations -j"$(nproc)"
+          # room_oas is installable when zlib is present, but qucs-s does not
+          # depend on it — build it so cmake --install of the ROOM tree succeeds.
+          if ninja -C Qucs-S-roomdb/build -t query room_oas >/dev/null 2>&1; then
+            cmake --build Qucs-S-roomdb/build --target room_oas -j"$(nproc)"
+          fi
 
       - name: Install qucs-s payload
         run: |
@@ -145,6 +150,11 @@ jobs:
             -DQUCS_ROOM_SOURCE_DIR="$COMMONDB_ROOT" \
             -DCAPNP_ROOT="$COMMONDB_ROOT/third_party/capnp-install-linux"
           cmake --build Qucs-S-roomdb/build --target qucs-s translations -j"$(nproc)"
+          # room_oas is installable when zlib is present, but qucs-s does not
+          # depend on it — build it so cmake --install of the ROOM tree succeeds.
+          if ninja -C Qucs-S-roomdb/build -t query room_oas >/dev/null 2>&1; then
+            cmake --build Qucs-S-roomdb/build --target room_oas -j"$(nproc)"
+          fi
 
       - name: Install qucs-s payload
         run: |

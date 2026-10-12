@@ -13,6 +13,8 @@ function(_qucs_configure_room_subproject)
     qucs_ensure_capnp()
     set(ROOM_BOOTSTRAP_CAPNP OFF CACHE BOOL "ROOM uses external Cap'n Proto" FORCE)
     set(ROOM_BUILD_EXAMPLES OFF CACHE BOOL "Do not build ROOM CLI tools inside Qucs-S" FORCE)
+    # ROOM is not the top-level project here; still install libs/headers for packaging.
+    set(ROOM_INSTALL ON CACHE BOOL "Install ROOM when embedded in Qucs-S" FORCE)
 endfunction()
 
 function(_qucs_add_room_aliases)
