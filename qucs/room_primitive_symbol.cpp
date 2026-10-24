@@ -6,12 +6,15 @@
 #include "primitive_resolver.h"
 #include "property.h"
 #include "qucs_exporter.h"
+#include "room_json_io.h"
 
 #include <QDir>
 #include <QFileInfo>
 
 #include <QProcessEnvironment>
 #include <QRegularExpression>
+
+#include <stdexcept>
 
 namespace qucs_room {
 namespace {
@@ -106,6 +109,17 @@ QString rewriteRoomViewSuffix(QString path, const QString &targetView)
         return path;
     }
     return path + target;
+}
+
+room::Database loadRoomDb(const QString &path)
+{
+    room::Database db;
+    const room::RoomJsonIo::Result loaded =
+        room::RoomJsonIo::loadRoomOrJson(path.toStdString(), db);
+    if (!loaded.ok) {
+        throw std::runtime_error(loaded.message);
+    }
+    return db;
 }
 
 bool contentHasLookalike(const room::CellContent &content)
@@ -258,7 +272,7 @@ bool tryLoadRoomCellSymbol(const QString &libName, const QString &cellName, QStr
     }
 
     try {
-        const room::Database db = room::Database::loadFromFile(symbolPath.toStdString());
+        const room::Database db = loadRoomDb(symbolPath);
         const QString exportCell = cellNameFromRoomPath(symbolPath);
         if (exportCell.isEmpty()) {
             return false;
@@ -309,7 +323,7 @@ bool tryLoadRoomPrimitiveSymbol(const QString &compName, QString &symbolSection)
     }
 
     try {
-        const room::Database db = room::Database::loadFromFile(resolved.roomPath);
+        const room::Database db = loadRoomDb(QString::fromStdString(resolved.roomPath));
         const room::QucsExporter exporter(options);
         const std::vector<std::string> lines = exporter.symbolLinesForCell(db, resolved.cellName);
         if (lines.empty() || !exporter.errors().empty()) {
@@ -343,7 +357,7 @@ bool roomCellSymbolIsLookalike(const QString &libName, const QString &cellName,
         return false;
     }
     try {
-        const room::Database db = room::Database::loadFromFile(symbolPath.toStdString());
+        const room::Database db = loadRoomDb(symbolPath);
         const std::string cellStd = cellName.trimmed().toStdString();
         const room::Cell *cell = db.lib().findCell(cellStd);
         if (!cell && !db.fileSummary().primaryCell.empty()) {
@@ -378,7 +392,8 @@ bool tryLoadRoomEmModelNetlist(const QString &libName, const QString &cellName,
     }
 
     try {
-        const room::Database db = room::Database::loadFromFile(emPath.toStdString());
+        // emmodel stays Cap’n Proto; loadRoomOrJson still works for binary.
+        const room::Database db = loadRoomDb(emPath);
         const std::string cellStd = cellName.trimmed().toStdString();
         const room::Cell *cell = db.lib().findCell(cellStd);
         if (!cell && !db.fileSummary().primaryCell.empty()) {

@@ -2,6 +2,7 @@
 
 #include "room_file_lock.h"
 #include "room_paths.h"
+#include "room_json_io.h"
 #include "database.h"
 #include "primitive_resolver.h"
 #include "qucs_exporter.h"
@@ -16,12 +17,24 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 namespace qucs_room {
 
 bool g_roomBridgeActive = false;
 
 namespace {
+
+room::Database loadRoomDb(const QString &path)
+{
+    room::Database db;
+    const room::RoomJsonIo::Result loaded =
+        room::RoomJsonIo::loadRoomOrJson(path.toStdString(), db);
+    if (!loaded.ok) {
+        throw std::runtime_error(loaded.message);
+    }
+    return db;
+}
 
 room::QucsExporter::Options exporterOptionsFromEnvironment()
 {
@@ -303,6 +316,9 @@ void denormalizeSchCoordinates(const QString &schPath, qint64 divisor)
 
 bool isRoomViewPath(const QString &path)
 {
+    if (room::parseRoomFilePath(path.toStdString()).valid) {
+        return true;
+    }
     const QString fileName = QFileInfo(path).fileName();
     if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
         return false;
@@ -321,6 +337,11 @@ bool isRoomViewPath(const QString &path)
 
 bool isRoomSchematicPath(const QString &path)
 {
+    const room::ParsedRoomPath parsed = room::parseRoomFilePath(path.toStdString());
+    if (parsed.valid) {
+        return parsed.view == room::ViewType::Schematic
+            || parsed.view == room::ViewType::Layout;
+    }
     const QString fileName = QFileInfo(path).fileName();
     if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
         return false;
@@ -339,6 +360,10 @@ bool isRoomSchematicPath(const QString &path)
 
 bool isRoomSymbolPath(const QString &path)
 {
+    const room::ParsedRoomPath parsed = room::parseRoomFilePath(path.toStdString());
+    if (parsed.valid) {
+        return parsed.view == room::ViewType::Symbol;
+    }
     const QString fileName = QFileInfo(path).fileName();
     if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
         return false;
@@ -366,6 +391,11 @@ QString documentBaseName(const QString &path)
 
 QString cellNameFromRoomPath(const QString &path)
 {
+    const room::ParsedRoomPath parsed = room::parseRoomFilePath(path.toStdString());
+    if (parsed.valid && !parsed.cellName.empty()) {
+        return QString::fromStdString(parsed.cellName);
+    }
+
     const QFileInfo fi(path);
     const QString fileName = fi.fileName();
     if (!fileName.endsWith(QStringLiteral(".room"), Qt::CaseInsensitive)) {
@@ -394,7 +424,7 @@ IoResult exportRoomToSchFile(const QString &roomPath, const QString &schPath)
 {
     IoResult result;
     try {
-        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        const room::Database db = loadRoomDb(roomPath);
         const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
             result.message = QObject::tr("Failed to determine cell name from ROOM file.");
@@ -436,7 +466,7 @@ IoResult exportRoomSymbolToSchFile(const QString &roomPath, const QString &schPa
 {
     IoResult result;
     try {
-        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        const room::Database db = loadRoomDb(roomPath);
         const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
             result.message = QObject::tr("Failed to determine cell name from ROOM file.");
@@ -486,7 +516,7 @@ IoResult exportRoomViewToString(const QString &roomPath, QString &schText)
 {
     IoResult result;
     try {
-        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        const room::Database db = loadRoomDb(roomPath);
         const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
             result.message = QObject::tr("Failed to determine cell name from ROOM file.");

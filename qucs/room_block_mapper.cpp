@@ -8,6 +8,7 @@
 #include "coord_scale.h"
 #include "room_file_lock.h"
 #include "room_paths.h"
+#include "room_json_io.h"
 #include "room_schematic_io.h"
 #include "database.h"
 #include "source_info.h"
@@ -596,7 +597,15 @@ IoResult loadRoomFileDirect(const QString &roomPath, Schematic *schematic)
     }
 
     try {
-        const room::Database db = room::Database::loadFromFile(roomPath.toStdString());
+        room::Database db;
+        {
+            const room::RoomJsonIo::Result loaded =
+                room::RoomJsonIo::loadRoomOrJson(roomPath.toStdString(), db);
+            if (!loaded.ok) {
+                result.message = QString::fromStdString(loaded.message);
+                return result;
+            }
+        }
         const QString cellName = cellNameFromRoomPath(roomPath);
         if (cellName.isEmpty()) {
             result.message = QObject::tr("Failed to determine cell name from ROOM file.");
@@ -731,7 +740,13 @@ IoResult saveSchematicToRoomFileDirect(Schematic *schematic, const QString &room
         const room::CellContent *existingContent = nullptr;
         std::unordered_map<std::string, std::vector<room::Property>> existingInstProps;
         if (QFileInfo::exists(roomPath)) {
-            const room::Database existingDb = room::Database::loadFromFile(roomPath.toStdString());
+            room::Database existingDb;
+            const room::RoomJsonIo::Result existingLoaded =
+                room::RoomJsonIo::loadRoomOrJson(roomPath.toStdString(), existingDb);
+            if (!existingLoaded.ok) {
+                result.message = QString::fromStdString(existingLoaded.message);
+                return result;
+            }
             if (const room::Cell *existingCell = existingDb.lib().findCell(cellName.toStdString())) {
                 existingContent = existingCell->findContent(viewType);
                 if (existingContent != nullptr) {
@@ -861,7 +876,14 @@ IoResult saveSchematicToRoomFileDirect(Schematic *schematic, const QString &room
 
         mergedDb.setGenerator("ROOM qucs_s");
         mergedDb.setTechnology("qucs");
-        mergedDb.saveToFile(roomPath.toStdString(), saveView);
+        {
+            const room::RoomJsonIo::Result saved =
+                room::RoomJsonIo::saveViewWithJsonTwin(mergedDb, saveView, roomPath.toStdString());
+            if (!saved.ok) {
+                result.message = QString::fromStdString(saved.message);
+                return result;
+            }
+        }
 
         if (!QFileInfo::exists(roomPath)) {
             result.message = QObject::tr("ROOM save did not create an output file.");
