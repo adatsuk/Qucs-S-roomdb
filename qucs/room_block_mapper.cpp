@@ -737,10 +737,11 @@ IoResult saveSchematicToRoomFileDirect(Schematic *schematic, const QString &room
         room::Block block;
         const double dbuPerEditorUnit = isRoomSymbolPath(roomPath) ? room::kXschemDbuPerEditorUnit : room::kQucsDbuPerEditorUnit;
         std::string sourceFormat;
+        // Keep existingDb alive for the whole save — existingContent points into it.
+        room::Database existingDb;
         const room::CellContent *existingContent = nullptr;
         std::unordered_map<std::string, std::vector<room::Property>> existingInstProps;
         if (QFileInfo::exists(roomPath)) {
-            room::Database existingDb;
             const room::RoomJsonIo::Result existingLoaded =
                 room::RoomJsonIo::loadRoomOrJson(roomPath.toStdString(), existingDb);
             if (!existingLoaded.ok) {
