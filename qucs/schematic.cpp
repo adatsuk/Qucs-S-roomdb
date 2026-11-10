@@ -1906,6 +1906,38 @@ bool Schematic::redo()
 }
 
 // ---------------------------------------------------
+// Captures the current document state so a keyboard move can be cancelled
+// later. Overwrites any previous (by now inactive) snapshot.
+void Schematic::beginCancellableMove() {
+  a_moveSnapshotSymbolMode = a_symbolMode;
+  a_moveSnapshotIdx        = a_symbolMode ? a_undoSymbolIdx : a_undoActionIdx;
+  a_moveSnapshot =
+      a_symbolMode ? createSymbolUndoString('*') : createUndoString('*');
+}
+
+// ---------------------------------------------------
+// Tells whether a_moveSnapshot still belongs to a keyboard move that is
+// genuinely still in progress, i.e. no undo entry has been committed since
+// beginCancellableMove() was called.
+bool Schematic::cancellableMovePending() const {
+  if (!a_moveSnapshot.has_value()) {
+    return false;
+  }
+  if (a_symbolMode != a_moveSnapshotSymbolMode) {
+    return false;
+  }
+  int currentIdx = a_symbolMode ? a_undoSymbolIdx : a_undoActionIdx;
+  return currentIdx == a_moveSnapshotIdx;
+}
+
+// ---------------------------------------------------
+// Discards the pending move snapshot without touching the schematic or the
+// undo stack. Called once a keyboard move has been committed normally.
+void Schematic::endCancellableMove() {
+  a_moveSnapshot.reset();
+}
+
+// ---------------------------------------------------
 void Schematic::switchPaintMode()
 {
     a_symbolMode = !a_symbolMode; // change mode
@@ -2165,7 +2197,25 @@ void Schematic::contentsDropEvent(QDropEvent *Event)
       return;
     }
 
-           // do not close untitled document to avoid segfault
+    // A project folder (<name>_prj) was dropped: open it as a project.
+    // Opening a project closes all documents, including this one, so the
+    // call is deferred until we have left this event handler.
+    for (const QUrl &url : std::as_const(urls)) {
+        if (!url.isLocalFile()) {
+          continue;
+        }
+      const QString dirPath = QDir::cleanPath(url.toLocalFile());
+      if (QFileInfo(dirPath).isDir() && dirPath.endsWith("_prj")) {
+        Event->acceptProposedAction();
+        QucsApp *app = a_App;
+        QMetaObject::invokeMethod(
+            app, [app, dirPath]() { app->openProject(dirPath); },
+            Qt::QueuedConnection);
+        return;
+      }
+    }
+
+    // do not close untitled document to avoid segfault
     QucsDoc *d = QucsMain->getDoc(0);
     bool changed = d->getDocChanged();
     d->setDocChanged(true);
@@ -2196,6 +2246,12 @@ void Schematic::contentsDropEvent(QDropEvent *Event)
         setChanged(true, true);
         continue; // allow dropping multiple images at once
       }
+
+      // Ignore folders that are not Qucs-S projects
+      if (QFileInfo(filePath).isDir()) {
+          continue;
+       }
+
       // For non-image files, fallback to original page opening behavior
       a_App->gotoPage(filePath);
     }

@@ -238,6 +238,21 @@ void QucsApp::slotEditDelete(bool on) {
 }
 
 // ------------------------------------------------------------------------
+// Resolves a pending cancellable keyboard move on Doc - restores the
+// pre-move snapshot and clears MouseActions' transient pointers - if one is
+// genuinely still active. No-op otherwise.
+static void resolvePendingKeyboardMove(Schematic* Doc, MouseActions* view) {
+  if (!Doc || !Doc->cancellableMovePending()) {
+    return;
+  }
+  view->focusElement = nullptr;
+  view->movingElements.clear();
+  view->movingState = MovingState{};
+  Doc->cancelCancellableMove();
+  Doc->viewport()->update();
+}
+
+// ------------------------------------------------------------------------
 // Is called if "Strech (move w/wiring)"-Button is pressed.
 void QucsApp::slotEditStretch(bool on) {
   Schematic *Doc = dynamic_cast<Schematic *>(DocumentTab->currentWidget());
@@ -251,8 +266,16 @@ void QucsApp::slotEditStretch(bool on) {
     return;
   }
 
+  if (!on) {
+    resolvePendingKeyboardMove(Doc, view);
+  }
+
   performToggleAction(on, editStretch, nullptr, &MouseActions::MMoveMoving,
                       nullptr);
+
+  if (on) {
+    Doc->beginCancellableMove();
+  }
 }
 
 // ------------------------------------------------------------------------
@@ -269,7 +292,15 @@ void QucsApp::slotEditMove(bool on) {
     return;
   }
 
+  if (!on) {
+    resolvePendingKeyboardMove(Doc, view);
+  }
+
   performToggleAction(on, editMove, nullptr, &MouseActions::MMoveFree, nullptr);
+
+  if (on) {
+    Doc->beginCancellableMove();
+  }
 }
 
 // -----------------------------------------------------------------------
@@ -353,6 +384,11 @@ void QucsApp::slotZoomIn(bool on) {
 }
 
 void QucsApp::slotEscape() {
+  if (activeAction == editStretch || activeAction == editMove) {
+    auto* Doc = dynamic_cast<Schematic*>(DocumentTab->currentWidget());
+    resolvePendingKeyboardMove(Doc, view);
+  }
+
   select->setChecked(true);
   slotSearchClear();
 }
@@ -1693,11 +1729,10 @@ void QucsApp::slotBuildModule() {
     return;
   }
 
-  messageDock->builderTabs->setTabIcon(0, QPixmap());
-  messageDock->builderTabs->setTabText(0, tr("admsXml"));
-  messageDock->builderTabs->setTabIcon(1, QPixmap());
-  messageDock->builderTabs->setTabText(1, tr("Compiler"));
-  messageDock->msgDock->setWindowTitle(tr("admsXml Dock"));
+  messageDock->builderTabs->setTabIcon(MessageDock::kVaTab, QPixmap());
+  messageDock->builderTabs->setTabText(MessageDock::kVaTab, tr("admsXml"));
+  messageDock->builderTabs->setTabIcon(MessageDock::kCompilerTab, QPixmap());
+  messageDock->builderTabs->setTabText(MessageDock::kCompilerTab, tr("Compiler"));
 
   QString make;
 
@@ -1799,13 +1834,12 @@ void QucsApp::slotBuildModule() {
   messageDock->cppOutput->appendPlainText(cppStatus);
 
   // shot the message docks
-  messageDock->msgDock->show();
+  messageDock->showBuildLog();
 }
 
 void QucsApp::buildWithOpenVAF() {
-  messageDock->builderTabs->setTabIcon(0, QPixmap());
-  messageDock->builderTabs->setTabText(0, tr("OpenVAF"));
-  messageDock->msgDock->setWindowTitle(tr("OpenVAF Dock"));
+  messageDock->builderTabs->setTabIcon(MessageDock::kVaTab, QPixmap());
+  messageDock->builderTabs->setTabText(MessageDock::kVaTab, tr("OpenVAF"));
 
   QString workDir = QucsSettings.QucsWorkDir.absolutePath();
   QDir::setCurrent(workDir);
@@ -1850,7 +1884,7 @@ void QucsApp::buildWithOpenVAF() {
   messageDock->admsOutput->appendPlainText(vaStatus);
 
   // shot the message docks
-  messageDock->msgDock->show();
+  messageDock->showBuildLog();
 }
 
 // ----------------------------------------------------------

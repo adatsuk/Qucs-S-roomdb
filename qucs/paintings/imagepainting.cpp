@@ -5,7 +5,9 @@
 
 #include "imagepainting.h"
 #include "SVGGalleryDialog.h" // Image templates
+#include "main.h"
 #include "misc.h"
+#include "qucs.h"
 #include "schematic.h"
 
 
@@ -468,11 +470,18 @@ void ImagePainting::setImageFromClipboard() {
 
 void ImagePainting::onBrowseClicked() {
 
+  // Set the directory for the file browser.
+  // If a project is opened, open that folder, otherwise, use the Qucs-S workspace directory.
+  QString startDir = QucsSettings.qucsWorkspaceDir.absolutePath();
+  if (QucsMain && !QucsMain->ProjName.isEmpty()) {
+      startDir = QucsSettings.QucsWorkDir.absolutePath();
+  }
+
   QString filter = QObject::tr("Images (*.bmp *.gif *.jpg *.jpeg *.png *.svg)");
   QString path = QFileDialog::getOpenFileName(
       m_pathEdit->parentWidget(),
       QObject::tr("Select Image"),
-      QDir::homePath(),
+      startDir,
       filter
       );
 
