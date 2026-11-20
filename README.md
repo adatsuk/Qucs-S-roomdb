@@ -9,7 +9,7 @@ Based on upstream Qucs-S with ROOM patches in `qucs/room_schematic_io.*` and `cm
 | Path | Purpose |
 |------|---------|
 | `../CommonDB` | ROOM library (sibling checkout, preferred at configure time) |
-| `../LibMan/capnp-install` | Cap'n Proto prefix on Windows (auto-detected) |
+| `../Door/capnp-install` | Cap'n Proto prefix on Windows (auto-detected; formerly LibMan) |
 | `qucs/room_schematic_io.*` | ROOM ↔ Qucs `.sch` bridge |
 | `cmake/FetchRoom.cmake` | CMake subproject for ROOM |
 | `docs/ROOM.md` | Build notes (Windows / CMake flags) |
@@ -20,7 +20,7 @@ Based on upstream Qucs-S with ROOM patches in `qucs/room_schematic_io.*` and `cm
 - **Qt 6** (Core, Gui, Widgets, Svg, Xml, PrintSupport)
 - **CMake** ≥ 3.10, **Ninja** or Make, **flex**, **bison**, **gperf**
 - **CommonDB** as a sibling directory, e.g. `../CommonDB`
-- Cap'n Proto: reuse `../LibMan/capnp-install` (Windows) or bootstrap via CommonDB on Linux
+- Cap'n Proto: reuse `../Door/capnp-install` (Windows) or bootstrap via Room/CommonDB on Linux
 
 ## Quick start (Linux)
 

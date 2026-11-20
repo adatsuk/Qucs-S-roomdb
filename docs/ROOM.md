@@ -7,7 +7,7 @@ Qucs-S can open and save schematic views in the [ROOM](https://github.com/IHP-Gm
 | Path | Role |
 |------|------|
 | `../CommonDB` | ROOM library (sibling checkout) |
-| `../LibMan/capnp-install` | Cap'n Proto prefix (reused automatically) |
+| `../Door/capnp-install` | Cap'n Proto prefix (reused automatically; formerly LibMan) |
 | `qucs/room_schematic_io.*` | ROOM ↔ Qucs `.sch` bridge |
 | `cmake/FetchRoom.cmake` | CMake subproject for ROOM |
 
@@ -24,7 +24,7 @@ cmake .. -G "MinGW Makefiles" `
   -DCMAKE_BUILD_TYPE=Release `
   -DQUCS_ENABLE_ROOM=ON `
   -DQUCS_ROOM_SOURCE_DIR=C:/Users/anton/Documents/CommonDB `
-  -DCAPNP_ROOT=C:/Users/anton/Documents/LibMan/capnp-install
+  -DCAPNP_ROOT=C:/Users/anton/Documents/Door/capnp-install
 
 cmake --build . --target qucs-s -j
 ```
