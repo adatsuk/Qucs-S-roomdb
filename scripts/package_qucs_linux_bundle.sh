@@ -61,7 +61,9 @@ else
     bundle_manual
 fi
 
-cp "$STAGE/qucs-s" "$DIST/bin/qucs-s"
+# Real ELF as qucs-s.bin; bin/qucs-s is a Qt-env wrapper (so ./bin/qucs-s never
+# starts without platforms/xcb).
+cp "$STAGE/qucs-s" "$DIST/bin/qucs-s.bin"
 for so in "$STAGE"/*.so*; do
     [[ -e "$so" ]] || continue
     cp -a "$so" "$DIST/lib/"
@@ -78,35 +80,57 @@ if [[ -d "$INSTALL_PREFIX/share" ]]; then
 fi
 
 if command -v patchelf >/dev/null 2>&1; then
-    patchelf --set-rpath '$ORIGIN/../lib' "$DIST/bin/qucs-s" || true
+    patchelf --set-rpath '$ORIGIN/../lib' "$DIST/bin/qucs-s.bin" || true
 fi
 
-cat >"$DIST/qucs-s-run.sh" <<'EOF'
+if [[ ! -f "$DIST/plugins/platforms/libqxcb.so" ]]; then
+    echo "WARNING: plugins/platforms/libqxcb.so missing — GUI will fail on Linux." >&2
+fi
+
+# Shared launcher body: resolve bundle root, set Qt paths, exec ELF.
+_write_qucs_launcher() {
+    local out="$1" elf_rel="$2"
+    cat >"$out" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 # Resolve symlinks so DIR is the real bundle even when invoked via <prefix>/bin/qucs-s.
-_src="${BASH_SOURCE[0]}"
-while [[ -L "$_src" ]]; do
-  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
-  _src="$(readlink "$_src")"
-  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+_src="\${BASH_SOURCE[0]}"
+while [[ -L "\$_src" ]]; do
+  _dir="\$(cd -P "\$(dirname "\$_src")" && pwd)"
+  _src="\$(readlink "\$_src")"
+  [[ "\$_src" != /* ]] && _src="\$_dir/\$_src"
 done
-DIR="$(cd -P "$(dirname "$_src")" && pwd)"
-export LD_LIBRARY_PATH="$DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export QT_PLUGIN_PATH="$DIR/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
-export Qucs_sShareDir="$DIR/share/qucs-s"
-exec "$DIR/bin/qucs-s" "$@"
+HERE="\$(cd -P "\$(dirname "\$_src")" && pwd)"
+# bin/qucs-s → bundle root is parent; qucs-s-run.sh at root → HERE is bundle.
+if [[ -x "\$HERE/bin/qucs-s.bin" ]]; then
+  DIR="\$HERE"
+elif [[ -x "\$HERE/qucs-s.bin" ]]; then
+  DIR="\$(cd -P "\$HERE/.." && pwd)"
+else
+  DIR="\$HERE"
+fi
+export LD_LIBRARY_PATH="\$DIR/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="\$DIR/plugins\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
+export QT_QPA_PLATFORM_PLUGIN_PATH="\$DIR/plugins/platforms\${QT_QPA_PLATFORM_PLUGIN_PATH:+:\$QT_QPA_PLATFORM_PLUGIN_PATH}"
+export Qucs_sShareDir="\$DIR/share/qucs-s"
+exec "\$DIR/${elf_rel}" "\$@"
 EOF
-chmod +x "$DIST/qucs-s-run.sh"
+    chmod +x "$out"
+}
+
+_write_qucs_launcher "$DIST/qucs-s-run.sh" "bin/qucs-s.bin"
+_write_qucs_launcher "$DIST/bin/qucs-s" "bin/qucs-s.bin"
 
 cat >"$DIST/BUNDLE.txt" <<EOF
 Qucs-S + ROOM portable bundle ($BUNDLE_LABEL)
 Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 Run: ./qucs-s-run.sh
+  or: ./bin/qucs-s
 
 Requires: Linux x86_64 with glibc 2.28+ (RHEL 8 / Rocky Linux 8 / AlmaLinux 8).
-Simulation backends (ngspice, etc.) are not included — install separately if needed.
+Host needs X11 xcb libs (libxcb, libxkbcommon-x11, …). Simulation backends
+(ngspice, etc.) are not included — install separately if needed.
 EOF
 
 rm -rf "$STAGE"
