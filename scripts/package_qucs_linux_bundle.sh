@@ -84,7 +84,14 @@ fi
 cat >"$DIST/qucs-s-run.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks so DIR is the real bundle even when invoked via <prefix>/bin/qucs-s.
+_src="${BASH_SOURCE[0]}"
+while [[ -L "$_src" ]]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+DIR="$(cd -P "$(dirname "$_src")" && pwd)"
 export LD_LIBRARY_PATH="$DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export QT_PLUGIN_PATH="$DIR/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
 export Qucs_sShareDir="$DIR/share/qucs-s"
