@@ -45,6 +45,41 @@ bundle_manual() {
     QMAKE="${QT_DIR}/bin/qmake" bash "$(dirname "$0")/bundle_qt_libs_manual.sh" "$STAGE/qucs-s" "$STAGE"
 }
 
+# linuxdeployqt on Qt6/Rocky often "succeeds" without writing plugins/ — always
+# ensure platforms (libqxcb) + friends from the Qt tree afterward.
+ensure_qt_plugins() {
+    local qmake="${QT_DIR}/bin/qmake"
+    local qt_plugins=""
+    if [[ -x "$qmake" ]]; then
+        qt_plugins="$("$qmake" -query QT_INSTALL_PLUGINS 2>/dev/null || true)"
+    fi
+    if [[ -z "$qt_plugins" || ! -d "$qt_plugins" ]]; then
+        qt_plugins="${QT_DIR}/plugins"
+    fi
+    mkdir -p "$STAGE/plugins"
+    local plugindir
+    for plugindir in platforms imageformats xcbglintegrations platforminputcontexts iconengines styles; do
+        if [[ -d "${qt_plugins}/${plugindir}" ]]; then
+            rm -rf "${STAGE}/plugins/${plugindir}"
+            cp -a "${qt_plugins}/${plugindir}" "${STAGE}/plugins/"
+        fi
+    done
+    # Pull plugin private deps (libQxcbQpa, etc.) into STAGE/lib.
+    if [[ -d "$STAGE/plugins" ]]; then
+        local plug lib
+        while IFS= read -r -d '' plug; do
+            while IFS= read -r lib; do
+                [[ -n "$lib" && -f "$lib" ]] || continue
+                case "$lib" in
+                    /lib/*|/lib64/*|/usr/lib/*|/usr/lib64/*) continue ;;
+                esac
+                mkdir -p "$STAGE/lib"
+                cp -an "$lib" "$STAGE/lib/" 2>/dev/null || cp -L "$lib" "$STAGE/lib/" || true
+            done < <(ldd "$plug" 2>/dev/null | awk '/=> \// {print $3}' || true)
+        done < <(find "$STAGE/plugins" -type f -name '*.so' -print0 2>/dev/null || true)
+    fi
+}
+
 if [[ "${BUNDLE_SKIP_LINUXDEPLOYQT:-}" == "1" ]]; then
     bundle_manual
 elif command -v linuxdeployqt >/dev/null 2>&1; then
@@ -56,6 +91,7 @@ elif command -v linuxdeployqt >/dev/null 2>&1; then
         echo "linuxdeployqt failed; falling back to manual Qt bundling." >&2
         bundle_manual
     fi
+    ensure_qt_plugins
 else
     echo "WARNING: linuxdeployqt not found; using manual Qt bundling."
     bundle_manual
@@ -83,8 +119,11 @@ if command -v patchelf >/dev/null 2>&1; then
     patchelf --set-rpath '$ORIGIN/../lib' "$DIST/bin/qucs-s.bin" || true
 fi
 
-if [[ ! -f "$DIST/plugins/platforms/libqxcb.so" ]]; then
-    echo "WARNING: plugins/platforms/libqxcb.so missing — GUI will fail on Linux." >&2
+if ! ls "$DIST/plugins/platforms"/libqxcb.so* >/dev/null 2>&1; then
+    echo "ERROR: plugins/platforms/libqxcb.so* missing after packaging." >&2
+    echo "ERROR: QT_DIR=$QT_DIR" >&2
+    find "$STAGE/plugins" "$DIST/plugins" -type f 2>/dev/null | head -n 50 >&2 || true
+    exit 1
 fi
 
 # Shared launcher body: resolve bundle root, set Qt paths, exec ELF.

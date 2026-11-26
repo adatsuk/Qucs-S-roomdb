@@ -85,11 +85,20 @@ jobs:
           QT_DIR: /opt/qt/6.5.3/gcc_64
         run: |
           export CAPNP_ROOT="$GITHUB_WORKSPACE/CommonDB/third_party/capnp-install-linux"
-          sed -i 's/\r$//' Qucs-S-roomdb/scripts/package_qucs_linux_bundle.sh
+          sed -i 's/\r$//' Qucs-S-roomdb/scripts/package_qucs_linux_bundle.sh \
+            Qucs-S-roomdb/scripts/bundle_qt_libs_manual.sh
           bash Qucs-S-roomdb/scripts/package_qucs_linux_bundle.sh \
             Qucs-S-roomdb/dist-install \
             Qucs-S-roomdb/qucs-s-rocky8-bundle.tar.gz \
             "Rocky Linux 8"
+
+      - name: Verify bundled xcb plugin
+        run: |
+          tar -tzf Qucs-S-roomdb/qucs-s-rocky8-bundle.tar.gz | grep -E 'plugins/platforms/libqxcb\.so'
+          tar -xzf Qucs-S-roomdb/qucs-s-rocky8-bundle.tar.gz -C Qucs-S-roomdb
+          test -x Qucs-S-roomdb/dist-bundle/qucs-s-run.sh
+          test -x Qucs-S-roomdb/dist-bundle/bin/qucs-s.bin
+          ls -la Qucs-S-roomdb/dist-bundle/plugins/platforms/
 
       - name: Upload qucs-s bundle
         uses: actions/upload-artifact@v4
