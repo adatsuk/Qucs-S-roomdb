@@ -209,3 +209,96 @@ jobs:
           name: qucs-s-ubuntu24
           path: Qucs-S-roomdb/qucs-s-ubuntu24-bundle.tar.gz
           retention-days: 14
+
+  # Portable Windows zip (windeployqt / MSYS2 Qt6) for Door stack updater.
+  build-windows:
+    name: qucs-s + ROOM (Windows portable)
+    runs-on: windows-2022
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout Qucs-S-roomdb
+        uses: actions/checkout@v4
+        with:
+          path: Qucs-S-roomdb
+
+      - name: Checkout ROOM
+        uses: actions/checkout@v4
+        with:
+          repository: IHP-GmbH/Room
+          path: CommonDB
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Set up MSYS2 (UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            git zip
+          pacboy: >-
+            cmake:p ninja:p gcc:p
+            qt6-base:p qt6-tools:p qt6-svg:p qt6-charts:p
+
+      - name: Build Cap'n Proto (Windows)
+        shell: cmd
+        run: |
+          set COMMONDB_ROOT=%GITHUB_WORKSPACE%\CommonDB
+          call CommonDB\scripts\build_capnp_windows.bat https://github.com/capnproto/capnproto.git branch master "" "" CommonDB\third_party\capnproto CommonDB\third_party\capnp-install
+          if not exist CommonDB\third_party\capnp-install\include\capnp\message.h (
+            echo Cap'n Proto headers missing after Windows bootstrap
+            exit /b 1
+          )
+
+      - name: Configure and build qucs-s
+        run: |
+          set -euo pipefail
+          WS="$(cygpath -u "$GITHUB_WORKSPACE")"
+          COMMONDB="$WS/CommonDB"
+          cmake -S Qucs-S-roomdb -B Qucs-S-roomdb/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$WS/Qucs-S-roomdb/dist-install" \
+            -DQUCS_ROOM_SOURCE_DIR="$COMMONDB" \
+            -DCAPNP_ROOT="$COMMONDB/third_party/capnp-install"
+          cmake --build Qucs-S-roomdb/build --target qucs-s translations -j"$(nproc)"
+          if ninja -C Qucs-S-roomdb/build -t query room_oas >/dev/null 2>&1; then
+            cmake --build Qucs-S-roomdb/build --target room_oas -j"$(nproc)"
+          fi
+
+      - name: Install and deploy Qt
+        run: |
+          set -euo pipefail
+          WS="$(cygpath -u "$GITHUB_WORKSPACE")"
+          BUILD="Qucs-S-roomdb/build"
+          PREFIX="$WS/Qucs-S-roomdb/dist-install"
+          cmake --install "$BUILD/_deps/commondb-build" --prefix "$PREFIX" || true
+          cmake --install "$BUILD/qucs" --prefix "$PREFIX"
+          cmake --install "$BUILD/library" --prefix "$PREFIX" || true
+          cmake --install "$BUILD/translations" --prefix "$PREFIX" || true
+          test -x "$PREFIX/bin/qucs-s.exe"
+          windeployqt6 --no-translations --svg "$PREFIX/bin/qucs-s.exe" \
+            || windeployqt --no-translations --svg "$PREFIX/bin/qucs-s.exe"
+
+      - name: Package Windows portable zip
+        run: |
+          set -euo pipefail
+          PREFIX="Qucs-S-roomdb/dist-install"
+          {
+            echo "flavor=windows"
+            echo "created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "source=qucs-s-windows"
+          } > "$PREFIX/BUNDLE_SOURCE.txt"
+          mkdir -p Qucs-S-roomdb/portable
+          (cd "$PREFIX" && zip -r -q ../portable/qucs-s-windows.zip .)
+          ls -la Qucs-S-roomdb/portable/qucs-s-windows.zip
+
+      - name: Upload Windows portable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: qucs-s-windows
+          path: Qucs-S-roomdb/portable/qucs-s-windows.zip
+          if-no-files-found: error
+          retention-days: 14
