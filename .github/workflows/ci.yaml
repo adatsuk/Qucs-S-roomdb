@@ -246,9 +246,9 @@ jobs:
       - name: Build Cap'n Proto (Windows)
         shell: cmd
         run: |
-          set COMMONDB_ROOT=%GITHUB_WORKSPACE%\CommonDB
-          call CommonDB\scripts\build_capnp_windows.bat https://github.com/capnproto/capnproto.git branch master "" "" CommonDB\third_party\capnproto CommonDB\third_party\capnp-install
-          if not exist CommonDB\third_party\capnp-install\include\capnp\message.h (
+          set "COMMONDB_ROOT=%GITHUB_WORKSPACE%\CommonDB"
+          call "%COMMONDB_ROOT%\scripts\build_capnp_windows.bat" https://github.com/capnproto/capnproto.git branch master "" "" "%COMMONDB_ROOT%\third_party\capnproto" "%COMMONDB_ROOT%\third_party\capnp-install"
+          if not exist "%COMMONDB_ROOT%\third_party\capnp-install\include\capnp\message.h" (
             echo Cap'n Proto headers missing after Windows bootstrap
             exit /b 1
           )
